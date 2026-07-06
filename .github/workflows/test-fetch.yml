@@ -52,3 +52,6 @@ jobs:
           echo ""
           echo "--- player_stats.csv preview ---"
           head -5 data/processed/player_stats.csv
+
+      - name: Generate game predictions
+        run: python src/models/game_predictions.py
