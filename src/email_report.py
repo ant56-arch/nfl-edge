@@ -80,37 +80,56 @@ def build_props_table(props, stat_cols, title, n=5):
         {rows}
     </table>"""
 
-def build_vegas_comparison_table(comparison):
+def build_vegas_comparison_table(comparison, max_rows=8):
     if comparison is None or comparison.empty:
         return ""
-    notable = comparison[comparison["has_notable_edge"]].sort_values("spread_edge", key=abs, ascending=False)
+    notable = comparison[comparison["has_notable_edge"]].copy()
     if notable.empty:
         return "<h2>Vs. Vegas</h2><p>No notable disagreements with the market this week.</p>"
 
+    # Biggest disagreements first (flips in who's favored are the most interesting)
+    notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
+    notable = notable.sort_values("sort_key", ascending=False)
+
+    total_notable = len(notable)
+    shown = notable.head(max_rows)
+
     rows = ""
-    for _, g in notable.iterrows():
-        flags = []
-        if g["notable_spread_edge"]:
-            flags.append(f"Spread: us {g['projected_spread']:+.1f} vs Vegas {g['vegas_home_favored_by']:+.1f}")
-        if g["notable_total_edge"]:
-            flags.append(f"Total: us {g['projected_total']:.1f} vs Vegas {g['total_line']:.1f}")
-        if g["notable_win_prob_edge"]:
-            flags.append(f"Win%: us {g['home_win_prob']:.0%} vs Vegas {g['vegas_home_win_prob']:.0%}")
+    for _, g in shown.iterrows():
+        our_pick = f"{g['favored_team']} -{g['favored_by']:.1f}"
+        vegas_pick = f"{g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f}"
+        flip_badge = ' <span style="color:#c0392b; font-weight:bold;">(FLIP)</span>' if g["picks_flip"] else ""
+
+        total_str = f"{g['projected_total']:.1f} vs {g['total_line']:.1f}" if pd.notna(g.get("total_line")) else "—"
+        winpct_str = f"{g['home_win_prob']:.0%} vs {g['vegas_home_win_prob']:.0%}" if pd.notna(g.get("vegas_home_win_prob")) else "—"
+
         rows += f"""
         <tr>
-            <td>{g['away_team']} @ {g['home_team']}</td>
-            <td>{"<br>".join(flags)}</td>
+            <td style="padding:8px;">{g['away_team']} @ {g['home_team']}</td>
+            <td style="padding:8px;">{our_pick}{flip_badge}</td>
+            <td style="padding:8px;">{vegas_pick}</td>
+            <td style="padding:8px;">{total_str}</td>
+            <td style="padding:8px;">{winpct_str}</td>
         </tr>"""
+
+    footer_note = ""
+    if total_notable > max_rows:
+        footer_note = f"<p style='color:#999; font-size:12px;'>Showing top {max_rows} of {total_notable} notable edges this week.</p>"
+
     return f"""
     <h2>Vs. Vegas - Notable Edges</h2>
     <table style="width:100%; border-collapse:collapse;">
         <tr style="background:#222; color:#fff;">
             <th style="padding:8px; text-align:left;">Matchup</th>
-            <th style="padding:8px; text-align:left;">Where we disagree with the market</th>
+            <th style="padding:8px; text-align:left;">Our Pick</th>
+            <th style="padding:8px; text-align:left;">Vegas Pick</th>
+            <th style="padding:8px; text-align:left;">Total (us vs Vegas)</th>
+            <th style="padding:8px; text-align:left;">Home Win% (us vs Vegas)</th>
         </tr>
         {rows}
     </table>
-    <p style="color:#999; font-size:12px;">Thresholds: 3+ pt spread edge, 3+ pt total edge, or 8+ pt win probability edge.</p>"""
+    {footer_note}
+    <p style="color:#999; font-size:12px;">(FLIP) = we favor a different team than Vegas does entirely, not just a different margin. Thresholds: 3+ pt spread edge, 3+ pt total edge, or 8+ pt win probability edge.</p>"""
 
 def build_email_html(games, props, comparison=None):
     week_games = next_week_games(games)
