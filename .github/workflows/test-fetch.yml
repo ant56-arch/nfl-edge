@@ -26,6 +26,9 @@ jobs:
         run: |
           echo "--- data/raw contents ---"
           ls -lh data/raw/
+          echo ""
+          echo "--- Spot check: Kyler Murray's current team ---"
+          grep -i "Murray" data/raw/current_roster.csv | grep -i "K\." || echo "Not found - check column names"
 
       - name: Build features
         run: python src/build_features.py
