@@ -80,7 +80,39 @@ def build_props_table(props, stat_cols, title, n=5):
         {rows}
     </table>"""
 
-def build_email_html(games, props):
+def build_vegas_comparison_table(comparison):
+    if comparison is None or comparison.empty:
+        return ""
+    notable = comparison[comparison["has_notable_edge"]].sort_values("spread_edge", key=abs, ascending=False)
+    if notable.empty:
+        return "<h2>Vs. Vegas</h2><p>No notable disagreements with the market this week.</p>"
+
+    rows = ""
+    for _, g in notable.iterrows():
+        flags = []
+        if g["notable_spread_edge"]:
+            flags.append(f"Spread: us {g['projected_spread']:+.1f} vs Vegas {g['vegas_home_favored_by']:+.1f}")
+        if g["notable_total_edge"]:
+            flags.append(f"Total: us {g['projected_total']:.1f} vs Vegas {g['total_line']:.1f}")
+        if g["notable_win_prob_edge"]:
+            flags.append(f"Win%: us {g['home_win_prob']:.0%} vs Vegas {g['vegas_home_win_prob']:.0%}")
+        rows += f"""
+        <tr>
+            <td>{g['away_team']} @ {g['home_team']}</td>
+            <td>{"<br>".join(flags)}</td>
+        </tr>"""
+    return f"""
+    <h2>Vs. Vegas - Notable Edges</h2>
+    <table style="width:100%; border-collapse:collapse;">
+        <tr style="background:#222; color:#fff;">
+            <th style="padding:8px; text-align:left;">Matchup</th>
+            <th style="padding:8px; text-align:left;">Where we disagree with the market</th>
+        </tr>
+        {rows}
+    </table>
+    <p style="color:#999; font-size:12px;">Thresholds: 3+ pt spread edge, 3+ pt total edge, or 8+ pt win probability edge.</p>"""
+
+def build_email_html(games, props, comparison=None):
     week_games = next_week_games(games)
     week_label = f"Week {week_games.iloc[0]['week']}" if not week_games.empty else "Upcoming"
 
@@ -102,6 +134,8 @@ def build_email_html(games, props):
         "headers": ["Targets", "Rec", "Rec Yds", "Rec TDs"],
     }, "Top Receiving Projections")
 
+    vegas_html = build_vegas_comparison_table(comparison)
+
     return f"""
     <html>
     <body style="font-family: Arial, sans-serif; color:#111;">
@@ -111,14 +145,16 @@ def build_email_html(games, props):
         <h2>Game Predictions</h2>
         {build_games_table(week_games)}
 
+        {vegas_html}
+
         <h2>Player Props</h2>
         {passing_html}
         {rushing_html}
         {receiving_html}
 
         <p style="color:#999; font-size:12px; margin-top:30px;">
-            Projections are model-based estimates from 2 years of play-by-play data,
-            not compared against sportsbook lines. Treat as directional, not gospel.
+            Projections are model-based estimates from 2 years of play-by-play data.
+            Vegas comparison uses de-vigged lines from DraftKings (via the-odds-api.com) where available.
         </p>
     </body>
     </html>"""
@@ -148,10 +184,18 @@ def main():
     print("Loading predictions...")
     games, props = load_predictions()
 
+    comparison = None
+    comparison_path = os.path.join(PROCESSED_DIR, "vegas_comparison.csv")
+    if os.path.exists(comparison_path):
+        comparison = pd.read_csv(comparison_path)
+        print(f"  Loaded Vegas comparison ({len(comparison)} games)")
+    else:
+        print("  No Vegas comparison found - email will skip that section")
+
     print("Building email...")
     week_games = next_week_games(games)
     week_label = f"Week {week_games.iloc[0]['week']}" if not week_games.empty else "Upcoming"
-    html = build_email_html(games, props)
+    html = build_email_html(games, props, comparison)
 
     print("Sending email via Resend...")
     send_email(html, week_label)
