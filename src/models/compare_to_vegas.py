@@ -33,7 +33,16 @@ def load_data():
     odds = pd.read_csv(os.path.join(RAW_DIR, "odds.csv"))
     return predictions, odds
 
+def next_week_only(predictions):
+    """Match email_report.py's logic: only compare the soonest upcoming week,
+    not the entire season's worth of games."""
+    if predictions.empty:
+        return predictions
+    next_week = predictions.sort_values(["season", "week"]).iloc[0][["season", "week"]]
+    return predictions[(predictions["season"] == next_week["season"]) & (predictions["week"] == next_week["week"])]
+
 def compare(predictions, odds):
+    predictions = next_week_only(predictions)
     merged = predictions.merge(odds, on=["home_team", "away_team"], how="inner", suffixes=("", "_vegas"))
 
     if merged.empty:
@@ -50,6 +59,13 @@ def compare(predictions, odds):
     merged["has_notable_edge"] = (
         merged["notable_spread_edge"] | merged["notable_total_edge"] | merged["notable_win_prob_edge"]
     )
+
+    # Readable pick strings, and whether we disagree on who's even favored
+    # (a bigger deal than just disagreeing on the margin)
+    merged["vegas_favored_team"] = merged.apply(
+        lambda r: r["home_team"] if r["vegas_home_favored_by"] > 0 else r["away_team"], axis=1
+    )
+    merged["picks_flip"] = merged["favored_team"] != merged["vegas_favored_team"]
 
     return merged
 
