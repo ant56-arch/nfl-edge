@@ -33,6 +33,14 @@ jobs:
       - name: Generate player props
         run: python src/models/props_predictions.py
 
+      - name: Fetch Vegas odds
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python src/fetch_odds.py
+
+      - name: Compare to Vegas
+        run: python src/models/compare_to_vegas.py
+
       - name: Send email
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
