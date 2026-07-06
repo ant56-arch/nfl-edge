@@ -1,0 +1,40 @@
+name: Weekly NFL Picks
+
+on:
+  workflow_dispatch:  # lets you manually trigger it too, for testing
+  schedule:
+    # Cron times are in UTC. NFL business happens in US time zones, so:
+    - cron: "0 12 * * 2"  # Tuesday 8:00 AM ET (12:00 UTC) - early-week outlook
+    - cron: "0 12 * * 5"  # Friday 8:00 AM ET (12:00 UTC) - final pre-weekend picks
+
+jobs:
+  generate-and-send-picks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch data
+        run: python src/fetch_data.py
+
+      - name: Build features
+        run: python src/build_features.py
+
+      - name: Generate game predictions
+        run: python src/models/game_predictions.py
+
+      - name: Generate player props
+        run: python src/models/props_predictions.py
+
+      - name: Send email
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: python src/email_report.py
