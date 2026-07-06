@@ -1,0 +1,86 @@
+"""
+compare_to_vegas.py
+Joins our own model's projections against real sportsbook lines and flags
+games/props where we meaningfully disagree with the market - these are the
+"value" spots worth a second look.
+
+EDGE DEFINITIONS:
+  spread_edge = our_projected_home_favor - vegas_home_favor
+    Positive = we like the home team MORE than Vegas does.
+  total_edge = our_projected_total - vegas_total
+    Positive = we expect a higher-scoring game than the market does.
+  win_prob_edge = our_home_win_prob - vegas_home_win_prob (de-vigged)
+    Positive = we're more confident in the home team than the market is.
+
+THRESHOLDS (starting points, adjust as you get a feel for the model):
+  A 3+ point spread edge or 3+ point total edge is generally considered
+  notable in NFL betting circles. An 8+ percentage point win-prob edge is
+  a meaningful model/market disagreement.
+"""
+
+import pandas as pd
+import os
+
+PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "processed")
+RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
+
+SPREAD_EDGE_THRESHOLD = 3.0
+TOTAL_EDGE_THRESHOLD = 3.0
+WIN_PROB_EDGE_THRESHOLD = 0.08
+
+def load_data():
+    predictions = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
+    odds = pd.read_csv(os.path.join(RAW_DIR, "odds.csv"))
+    return predictions, odds
+
+def compare(predictions, odds):
+    merged = predictions.merge(odds, on=["home_team", "away_team"], how="inner", suffixes=("", "_vegas"))
+
+    if merged.empty:
+        return merged
+
+    merged["spread_edge"] = merged["projected_spread"] - merged["vegas_home_favored_by"]
+    merged["total_edge"] = merged["projected_total"] - merged["total_line"]
+    merged["win_prob_edge"] = merged["home_win_prob"] - merged["vegas_home_win_prob"]
+
+    merged["notable_spread_edge"] = merged["spread_edge"].abs() >= SPREAD_EDGE_THRESHOLD
+    merged["notable_total_edge"] = merged["total_edge"].abs() >= TOTAL_EDGE_THRESHOLD
+    merged["notable_win_prob_edge"] = merged["win_prob_edge"].abs() >= WIN_PROB_EDGE_THRESHOLD
+
+    merged["has_notable_edge"] = (
+        merged["notable_spread_edge"] | merged["notable_total_edge"] | merged["notable_win_prob_edge"]
+    )
+
+    return merged
+
+def main():
+    print("Loading predictions and odds...")
+    predictions, odds = load_data()
+
+    if odds.empty:
+        print("No odds data available - skipping comparison.")
+        return
+
+    print("Comparing model vs Vegas...")
+    comparison = compare(predictions, odds)
+
+    if comparison.empty:
+        print("No matching games found between predictions and odds (check team name mapping or schedules).")
+        return
+
+    out_path = os.path.join(PROCESSED_DIR, "vegas_comparison.csv")
+    comparison.to_csv(out_path, index=False)
+
+    notable = comparison[comparison["has_notable_edge"]].sort_values("spread_edge", key=abs, ascending=False)
+    print(f"\n{len(comparison)} games compared, {len(notable)} with a notable edge vs Vegas.")
+
+    if not notable.empty:
+        print("\nNotable disagreements with the market:")
+        cols = ["home_team", "away_team", "projected_spread", "vegas_home_favored_by", "spread_edge",
+                "projected_total", "total_line", "total_edge", "home_win_prob", "vegas_home_win_prob", "win_prob_edge"]
+        print(notable[cols].round(3).to_string(index=False))
+
+    print(f"\nSaved full comparison to {out_path}")
+
+if __name__ == "__main__":
+    main()
