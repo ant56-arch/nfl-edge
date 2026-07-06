@@ -167,6 +167,9 @@ def build_player_stats(pbp):
     receiving["target_share"] = receiving["targets"] / receiving["team_targets"]
     receiving = receiving.rename(columns={"receiver_player_id": "player_id", "receiver_player_name": "player_name", "posteam": "team"})
     receiving = receiving[receiving["player_id"].notna()]
+    rec_games = targets.groupby(["season", "posteam", "receiver_player_id"])["week"].nunique().reset_index()
+    rec_games.columns = ["season", "team", "player_id", "games_played_rec"]
+    receiving = receiving.merge(rec_games, on=["season", "team", "player_id"], how="left")
 
     # Rushing stats
     rushes = pbp[pbp["rush"] == 1].copy()
@@ -181,12 +184,52 @@ def build_player_stats(pbp):
     rushing["carry_share"] = rushing["carries"] / rushing["team_carries"]
     rushing = rushing.rename(columns={"rusher_player_id": "player_id", "rusher_player_name": "player_name", "posteam": "team"})
     rushing = rushing[rushing["player_id"].notna()]
+    rush_games = rushes.groupby(["season", "posteam", "rusher_player_id"])["week"].nunique().reset_index()
+    rush_games.columns = ["season", "team", "player_id", "games_played_rush"]
+    rushing = rushing.merge(rush_games, on=["season", "team", "player_id"], how="left")
+
+    # Passing stats (QBs) - note interceptions aren't in our filtered pbp (pass/run plays only,
+    # but interceptions happen on pass plays so they're retained)
+    passes = pbp[pbp["pass"] == 1].copy()
+    passing = passes.groupby(["season", "posteam", "passer_player_id", "passer_player_name"]).agg(
+        pass_attempts=("play_id", "count"),
+        completions=("complete_pass", "sum"),
+        pass_yards=("yards_gained", "sum"),
+        pass_tds=("touchdown", "sum"),
+        interceptions=("interception", "sum") if "interception" in passes.columns else ("play_id", "size"),
+    ).reset_index()
+    passing = passing.rename(columns={"passer_player_id": "player_id", "passer_player_name": "player_name", "posteam": "team"})
+    passing = passing[passing["player_id"].notna()]
+    pass_games = passes.groupby(["season", "posteam", "passer_player_id"])["week"].nunique().reset_index()
+    pass_games.columns = ["season", "team", "player_id", "games_played_pass"]
+    passing = passing.merge(pass_games, on=["season", "team", "player_id"], how="left")
 
     player_stats = pd.merge(
         receiving, rushing,
         on=["season", "team", "player_id", "player_name"],
         how="outer", suffixes=("_rec", "_rush")
     )
+    player_stats = pd.merge(
+        player_stats, passing,
+        on=["season", "team", "player_id", "player_name"],
+        how="outer"
+    )
+
+    # Per-game rate columns, used directly by the props model - avoids
+    # recomputing this logic in every place that needs a "per game" number
+    player_stats["games_played"] = player_stats[["games_played_rec", "games_played_rush", "games_played_pass"]].max(axis=1)
+    player_stats["targets_per_game"] = player_stats["targets"] / player_stats["games_played"]
+    player_stats["carries_per_game"] = player_stats["carries"] / player_stats["games_played"]
+    player_stats["pass_attempts_per_game"] = player_stats["pass_attempts"] / player_stats["games_played"]
+    player_stats["yards_per_target"] = player_stats["rec_yards"] / player_stats["targets"]
+    player_stats["yards_per_carry"] = player_stats["rush_yards"] / player_stats["carries"]
+    player_stats["yards_per_pass_attempt"] = player_stats["pass_yards"] / player_stats["pass_attempts"]
+    player_stats["catch_rate"] = player_stats["receptions"] / player_stats["targets"]
+    player_stats["completion_rate"] = player_stats["completions"] / player_stats["pass_attempts"]
+    player_stats["rec_td_rate"] = player_stats["rec_tds"] / player_stats["targets"]
+    player_stats["rush_td_rate"] = player_stats["rush_tds"] / player_stats["carries"]
+    player_stats["pass_td_rate"] = player_stats["pass_tds"] / player_stats["pass_attempts"]
+
     return player_stats
 
 def main():
