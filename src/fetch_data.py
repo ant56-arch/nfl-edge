@@ -71,7 +71,7 @@ def fetch_schedules(seasons):
     return df[df["season"].isin(seasons)]
 
 def fetch_rosters(seasons):
-    """Pull weekly rosters (needed for player props - who's active, position, team)."""
+    """Pull weekly rosters for HISTORICAL seasons (used for feature engineering)."""
     frames = []
     for season in seasons:
         url = f"{BASE}/weekly_rosters/roster_weekly_{season}.csv"
@@ -82,25 +82,52 @@ def fetch_rosters(seasons):
             print(f"  Skipping roster {season}: {e}")
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
+def fetch_current_roster(season):
+    """
+    Pull the CURRENT full-season roster - this is nflverse's continuously
+    updated roster file that reflects free agency signings, trades, and
+    releases year-round (unlike weekly_rosters, which only exists for weeks
+    that have actually been played). This is our source of truth for
+    "who is on what team right now," which matters most in the offseason
+    when the previous season's play-by-play data is stale on personnel.
+    """
+    url = f"{BASE}/rosters/roster_{season}.csv"
+    try:
+        df = pd.read_csv(url, low_memory=False)
+        return df
+    except requests.exceptions.HTTPError as e:
+        print(f"  Current roster not available yet for {season}: {e}")
+        return pd.DataFrame()
+
 def main():
     seasons = get_seasons_to_pull(lookback_years=2)
     print(f"Pulling data for seasons: {seasons}")
 
-    print("\n[1/3] Play-by-play data...")
+    print("\n[1/4] Play-by-play data...")
     pbp = fetch_play_by_play(seasons)
     pbp.to_parquet(os.path.join(RAW_DIR, "pbp_combined.parquet"))
     print(f"  Total plays: {len(pbp):,}")
 
-    print("\n[2/3] Schedules...")
+    print("\n[2/4] Schedules...")
     schedules = fetch_schedules(seasons)
     schedules.to_csv(os.path.join(RAW_DIR, "schedules.csv"), index=False)
     print(f"  Total games: {len(schedules):,}")
 
-    print("\n[3/3] Rosters...")
+    print("\n[3/4] Historical weekly rosters (for feature engineering)...")
     rosters = fetch_rosters(seasons)
     if not rosters.empty:
         rosters.to_parquet(os.path.join(RAW_DIR, "rosters.parquet"))
         print(f"  Total roster entries: {len(rosters):,}")
+
+    print("\n[4/4] Current live roster (who's on what team right now)...")
+    current_season = current_nfl_season()
+    current_roster = fetch_current_roster(current_season)
+    if not current_roster.empty:
+        current_roster.to_csv(os.path.join(RAW_DIR, "current_roster.csv"), index=False)
+        print(f"  Total current roster entries: {len(current_roster):,}")
+        # Sanity check: show a few recently-signed/traded players if the column exists
+        if "full_name" in current_roster.columns and "team" in current_roster.columns:
+            print(f"  Sample: {current_roster[['full_name', 'team', 'position']].sample(min(3, len(current_roster))).to_dict('records')}")
 
     print("\nDone. Raw data saved to data/raw/")
 
