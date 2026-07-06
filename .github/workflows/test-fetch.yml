@@ -22,7 +22,21 @@ jobs:
       - name: Run data fetch
         run: python src/fetch_data.py
 
-      - name: Show what we got
+      - name: Show raw data
         run: |
           echo "--- data/raw contents ---"
           ls -lh data/raw/
+
+      - name: Build features
+        run: python src/build_features.py
+
+      - name: Show processed stats
+        run: |
+          echo "--- data/processed contents ---"
+          ls -lh data/processed/
+          echo ""
+          echo "--- team_stats.csv preview ---"
+          head -5 data/processed/team_stats.csv
+          echo ""
+          echo "--- player_stats.csv preview ---"
+          head -5 data/processed/player_stats.csv
