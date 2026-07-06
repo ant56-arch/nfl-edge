@@ -55,3 +55,6 @@ jobs:
 
       - name: Generate game predictions
         run: python src/models/game_predictions.py
+
+      - name: Generate player props
+        run: python src/models/props_predictions.py
