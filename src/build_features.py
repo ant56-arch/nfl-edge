@@ -39,6 +39,31 @@ def load_pbp():
     df = df[df["posteam"].notna()]
     return df
 
+def redzone_trip_td_rate(g):
+    """
+    Proper red-zone TD rate: % of DRIVES that reach the red zone and end in
+    a touchdown (the standard definition), not % of red-zone plays that are
+    touchdowns (which understates it, since most plays in a trip aren't the
+    scoring play).
+
+    Uses nflverse's 'drive' and 'fixed_drive_result' columns when available;
+    falls back to the cruder per-play method if a dataset doesn't have them.
+    """
+    if "drive" not in g.columns or "fixed_drive_result" not in g.columns:
+        redzone = g[g["yardline_100"] <= 20]
+        redzone_td = redzone[redzone["touchdown"] == 1]
+        return len(redzone_td) / len(redzone) if len(redzone) else np.nan
+
+    trips = g.groupby("drive").agg(
+        reached_rz=("yardline_100", lambda x: (x <= 20).any()),
+        result=("fixed_drive_result", "first"),
+    )
+    rz_trips = trips[trips["reached_rz"]]
+    if len(rz_trips) == 0:
+        return np.nan
+    td_trips = rz_trips[rz_trips["result"].astype(str).str.contains("Touchdown", case=False, na=False)]
+    return len(td_trips) / len(rz_trips)
+
 def build_team_game_stats(pbp):
     """Aggregate play-by-play up to one row per team per game (offense side)."""
     grouped = pbp.groupby(["season", "week", "posteam"])
@@ -50,8 +75,6 @@ def build_team_game_stats(pbp):
         rush_plays = g[g["rush"] == 1]
         third_downs = g[g["down"] == 3]
         third_conv = third_downs[third_downs["yards_gained"] >= third_downs["ydstogo"]]
-        redzone = g[g["yardline_100"] <= 20]
-        redzone_td = redzone[redzone["touchdown"] == 1]
 
         rows.append({
             "season": season,
@@ -64,7 +87,7 @@ def build_team_game_stats(pbp):
             "rush_epa": rush_plays["epa"].mean() if len(rush_plays) else np.nan,
             "explosive_rate": (g["yards_gained"] >= 15).mean(),
             "third_down_rate": len(third_conv) / len(third_downs) if len(third_downs) else np.nan,
-            "redzone_td_rate": len(redzone_td) / len(redzone) if len(redzone) else np.nan,
+            "redzone_td_rate": redzone_trip_td_rate(g),
             "sack_rate": pass_plays["sack"].mean() if len(pass_plays) else np.nan,
             "cpoe": pass_plays["cpoe"].mean() if "cpoe" in pass_plays.columns and len(pass_plays) else np.nan,
         })
@@ -81,8 +104,6 @@ def build_team_defense_game_stats(pbp):
         rush_plays = g[g["rush"] == 1]
         third_downs = g[g["down"] == 3]
         third_conv = third_downs[third_downs["yards_gained"] >= third_downs["ydstogo"]]
-        redzone = g[g["yardline_100"] <= 20]
-        redzone_td = redzone[redzone["touchdown"] == 1]
 
         rows.append({
             "season": season,
@@ -94,7 +115,7 @@ def build_team_defense_game_stats(pbp):
             "def_rush_epa_allowed": rush_plays["epa"].mean() if len(rush_plays) else np.nan,
             "def_explosive_rate_allowed": (g["yards_gained"] >= 15).mean(),
             "def_third_down_rate_allowed": len(third_conv) / len(third_downs) if len(third_downs) else np.nan,
-            "def_redzone_td_rate_allowed": len(redzone_td) / len(redzone) if len(redzone) else np.nan,
+            "def_redzone_td_rate_allowed": redzone_trip_td_rate(g),
             "pressure_rate": pass_plays["sack"].mean() if len(pass_plays) else np.nan,
         })
 
