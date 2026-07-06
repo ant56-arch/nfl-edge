@@ -27,8 +27,17 @@ jobs:
           echo "--- data/raw contents ---"
           ls -lh data/raw/
           echo ""
-          echo "--- Spot check: Kyler Murray's current team ---"
-          grep -i "Murray" data/raw/current_roster.csv | grep -i "K\." || echo "Not found - check column names"
+          echo "--- Current roster: league-wide coverage check ---"
+          python3 -c "
+          import pandas as pd
+          df = pd.read_csv('data/raw/current_roster.csv', low_memory=False)
+          print(f'Total players: {len(df)}')
+          print(f'Total teams: {df[\"team\"].nunique()}')
+          print(f'Position breakdown: {df[\"position\"].value_counts().head(10).to_dict()}')
+          print()
+          print('Spot check - a handful of players across different teams:')
+          print(df[df['full_name'].str.contains('Murray|Jefferson|Mahomes|Allen|Jackson', case=False, na=False)][['full_name','team','position']].to_string(index=False))
+          "
 
       - name: Build features
         run: python src/build_features.py
