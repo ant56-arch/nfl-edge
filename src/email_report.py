@@ -23,11 +23,11 @@ PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed
 BG = "#0b0d10"
 CARD_BG = "#151920"
 CARD_BORDER = "#252b35"
-TEXT_PRIMARY = "#e8eaed"
-TEXT_MUTED = "#8b93a1"
-ACCENT_AMBER = "#f5a623"
-ACCENT_CYAN = "#3ec9d6"
-ACCENT_RED = "#e5484d"
+TEXT_PRIMARY = "#e8eaed !important"
+TEXT_MUTED = "#8b93a1 !important"
+ACCENT_AMBER = "#f5a623 !important"
+ACCENT_CYAN = "#3ec9d6 !important"
+ACCENT_RED = "#e5484d !important"
 FONT_DISPLAY = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 FONT_MONO = "'Courier New', Courier, monospace"
 
@@ -221,9 +221,14 @@ def build_email_html(games, props, comparison=None):
 
     html = """
     <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="color-scheme" content="dark">
+      <meta name="supported-color-schemes" content="dark">
+    </head>
     <body style="margin:0; padding:0; background:""" + BG + """;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + BG + """;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + BG + """;" bgcolor=\"""" + BG + """\">
         <tr><td align="center" style="padding:24px 12px;">
           <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
 
