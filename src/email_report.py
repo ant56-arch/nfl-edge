@@ -111,11 +111,10 @@ def build_games_table(games, comparison):
             vegas_total = DASH
             disagree = False
 
-        row_bg = "#1a1f27" if i % 2 == 0 else CARD_BG
         flip_dot = ('<span style="color:' + ACCENT_RED + '; font-weight:800;">&#9679;</span> ') if disagree else ""
 
         rows += """
-        <tr style="background:""" + row_bg + """;">
+        <tr>
           <td style="padding:10px 8px; font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_PRIMARY + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + g['away_team'] + """ <span style="color:""" + TEXT_MUTED + """;">@</span> """ + g['home_team'] + """</td>
           <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</td>
           <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + flip_dot + vegas_line + """</td>
@@ -189,8 +188,7 @@ def build_props_table(props, stat_cols, title, n=5):
             for c in stat_cols["display"]
         )
         tag = injury_tag(p.get("injury_status"))
-        row_bg = "#1a1f27" if i % 2 == 0 else CARD_BG
-        rows += "<tr style=\"background:" + row_bg + ";\">"
+        rows += "<tr>"
         rows += "<td style='padding:9px 8px; font-family:" + FONT_DISPLAY + "; font-size:13px; color:" + TEXT_PRIMARY + "; border-bottom:1px solid " + CARD_BORDER + ";'><b>" + str(p['player_name']) + "</b>" + tag + "<br><span style='color:" + TEXT_MUTED + "; font-size:11px;'>" + str(p['team']) + " vs " + str(p['opponent']) + "</span></td>"
         rows += cells
         rows += "</tr>"
