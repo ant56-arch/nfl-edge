@@ -21,30 +21,49 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch data
+        id: fetch_data
         run: python src/fetch_data.py
 
       - name: Fetch injury report
+        id: fetch_injuries
         run: python src/fetch_injuries.py
 
       - name: Build features
+        id: build_features
         run: python src/build_features.py
 
       - name: Generate game predictions
+        id: game_predictions
         run: python src/models/game_predictions.py
 
       - name: Generate player props
+        id: player_props
         run: python src/models/props_predictions.py
 
       - name: Fetch Vegas odds
+        id: fetch_odds
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python src/fetch_odds.py
 
       - name: Compare to Vegas
+        id: compare_vegas
         run: python src/models/compare_to_vegas.py
 
+      - name: Sanity check output
+        id: sanity_check
+        run: python src/sanity_checks.py
+
       - name: Send email
+        id: send_email
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python src/email_report.py
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: python src/alerts.py "Pipeline failed - check the Actions run for the specific step" "One or more steps failed during this run."
