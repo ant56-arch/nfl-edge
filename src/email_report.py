@@ -1,7 +1,13 @@
 """
 email_report.py
-Formats game predictions + player props into a clean HTML email and sends
-it via Resend's API - same delivery mechanism as BTS Edge.
+Formats game predictions + player props + Vegas lines into a styled HTML
+email and sends it via Resend's API.
+
+DESIGN: dark "broadcast terminal" theme - distinct from any other project's
+styling. Bold condensed headers for structure, monospace for every number
+(scores, odds, stat lines) to give it a data-terminal feel, amber for our
+own picks, cyan for market/Vegas data so the two are always visually
+distinguishable at a glance.
 
 Required GitHub Secrets:
   RESEND_API_KEY   - your Resend API key
@@ -16,6 +22,19 @@ from datetime import datetime
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 
+# ---- Design tokens ----
+BG = "#0b0d10"
+CARD_BG = "#151920"
+CARD_BORDER = "#252b35"
+TEXT_PRIMARY = "#e8eaed"
+TEXT_MUTED = "#8b93a1"
+ACCENT_AMBER = "#f5a623"      # our picks / model output
+ACCENT_CYAN = "#3ec9d6"       # Vegas / market data
+ACCENT_RED = "#e5484d"        # warnings, doubtful/out, big disagreements
+ACCENT_GREEN = "#4caf7d"      # favorable / healthy
+FONT_DISPLAY = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+FONT_MONO = "'Courier New', Courier, monospace"
+
 def load_predictions():
     games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
     props = pd.read_csv(os.path.join(PROCESSED_DIR, "player_props.csv"))
@@ -27,36 +46,112 @@ def next_week_games(games):
     next_week = games.sort_values(["season", "week"]).iloc[0][["season", "week"]]
     return games[(games["season"] == next_week["season"]) & (games["week"] == next_week["week"])]
 
-def build_games_table(games):
-    if games.empty:
-        return "<p>No upcoming games found.</p>"
-    games = games.sort_values("favored_by", ascending=False)
-    rows = ""
-    for _, g in games.iterrows():
-        win_pct = g["home_win_prob"] if g["favored_team"] == g["home_team"] else g["away_win_prob"]
-        rows += f"""
+def card_open(title=None, subtitle=None):
+    header = ""
+    if title:
+        header = f"""
         <tr>
-            <td>{g['away_team']} @ {g['home_team']}</td>
-            <td><b>{g['favored_team']}</b> -{g['favored_by']}</td>
-            <td>{win_pct:.0%}</td>
-            <td>{g['projected_total']}</td>
+          <td style="padding:18px 20px 4px 20px;">
+            <div style="font-family:{FONT_DISPLAY}; font-size:11px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:{ACCENT_AMBER};">{title}</div>
+            {f'<div style="font-family:{FONT_DISPLAY}; font-size:12px; color:{TEXT_MUTED}; margin-top:2px;">{subtitle}</div>' if subtitle else ''}
+          </td>
         </tr>"""
     return f"""
-    <table style="width:100%; border-collapse:collapse;">
-        <tr style="background:#222; color:#fff;">
-            <th style="padding:8px; text-align:left;">Matchup</th>
-            <th style="padding:8px; text-align:left;">Favorite</th>
-            <th style="padding:8px; text-align:left;">Win%</th>
-            <th style="padding:8px; text-align:left;">Total</th>
-        </tr>
-        {rows}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{CARD_BG}; border:1px solid {CARD_BORDER}; border-radius:10px; margin-bottom:16px;">
+      {header}
+      <tr><td style="padding:8px 20px 20px 20px;">"""
+
+def card_close():
+    return "</td></tr></table>"
+
+def build_games_table(games, comparison):
+    """Every game, every time, with our line and Vegas's line side by side."""
+    if games.empty:
+        return "<p style='color:{}; font-family:{};'>No upcoming games found.</p>".format(TEXT_MUTED, FONT_DISPLAY)
+
+    merged = games.copy()
+    if comparison is not None and not comparison.empty:
+        vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line", "vegas_home_win_prob"]]
+        merged = merged.merge(vegas_cols, on=["home_team", "away_team"], how="left")
+
+    merged = merged.sort_values("favored_by", ascending=False)
+
+    rows = ""
+    for i, g in merged.iterrows():
+        win_pct = g["home_win_prob"] if g["favored_team"] == g["home_team"] else g["away_win_prob"]
+        has_vegas = pd.notna(g.get("vegas_home_favored_by"))
+
+        if has_vegas:
+            vegas_favored_team = g["vegas_favored_team"]
+            vegas_line = f"{vegas_favored_team} -{abs(g['vegas_home_favored_by']):.1f}"
+            vegas_total = f"{g['total_line']:.1f}" if pd.notna(g.get("total_line")) else "\u2014"
+            disagree = g["favored_team"] != vegas_favored_team
+        else:
+            vegas_line = "\u2014"
+            vegas_total = "\u2014"
+            disagree = False
+
+        row_bg = "#1a1f27" if i % 2 == 0 else CARD_BG
+        flip_dot = f'<span style="color:{ACCENT_RED}; font-weight:800;">&#9679;</span> ' if disagree else ""
+
+        rows += f"""
+        <tr style="background:{row_bg};">
+          <td style="padding:10px 8px; font-family:{FONT_DISPLAY}; font-size:13px; color:{TEXT_PRIMARY}; border-bottom:1px solid {CARD_BORDER};">{g['away_team']} <span style="color:{TEXT_MUTED};">@</span> {g['home_team']}</td>
+          <td style="padding:10px 8px; font-family:{FONT_MONO}; font-size:13px; color:{ACCENT_AMBER}; font-weight:700; border-bottom:1px solid {CARD_BORDER};">{g['favored_team']} -{g['favored_by']:.1f}</td>
+          <td style="padding:10px 8px; font-family:{FONT_MONO}; font-size:13px; color:{ACCENT_CYAN}; border-bottom:1px solid {CARD_BORDER};">{flip_dot}{vegas_line}</td>
+          <td style="padding:10px 8px; font-family:{FONT_MONO}; font-size:13px; color:{TEXT_PRIMARY}; border-bottom:1px solid {CARD_BORDER};">{g['projected_total']:.1f} <span style="color:{TEXT_MUTED};">/</span> <span style="color:{ACCENT_CYAN};">{vegas_total}</span></td>
+          <td style="padding:10px 8px; font-family:{FONT_MONO}; font-size:13px; color:{TEXT_PRIMARY}; border-bottom:1px solid {CARD_BORDER};">{win_pct:.0%}</td>
+        </tr>"""
+
+    return f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr style="font-family:{FONT_DISPLAY}; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:{TEXT_MUTED};">
+        <td style="padding:0 8px 8px 8px;">Matchup</td>
+        <td style="padding:0 8px 8px 8px;">Our Line</td>
+        <td style="padding:0 8px 8px 8px;">Vegas</td>
+        <td style="padding:0 8px 8px 8px;">Total (us / vegas)</td>
+        <td style="padding:0 8px 8px 8px;">Win%</td>
+      </tr>
+      {rows}
+    </table>
+    <div style="font-family:{FONT_DISPLAY}; font-size:11px; color:{TEXT_MUTED}; margin-top:10px;"><span style="color:{ACCENT_RED};">&#9679;</span> = we favor a different team than Vegas entirely.</div>"""
+
+def build_edge_highlight_cards(comparison, max_cards=3):
+    """The 2-3 biggest disagreements as compact standout cards, not another table."""
+    if comparison is None or comparison.empty:
+        return ""
+    notable = comparison[comparison["has_notable_edge"]].copy()
+    if notable.empty:
+        return ""
+    notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
+    top = notable.sort_values("sort_key", ascending=False).head(max_cards)
+
+    cells = ""
+    for _, g in top.iterrows():
+        flip = g["favored_team"] != g["vegas_favored_team"]
+        border_color = ACCENT_RED if flip else ACCENT_AMBER
+        cells += f"""
+        <td width="{100 // max_cards}%" valign="top" style="padding:0 6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BG}; border:1px solid {border_color}; border-radius:8px;">
+            <tr><td style="padding:12px;">
+              <div style="font-family:{FONT_DISPLAY}; font-size:12px; color:{TEXT_MUTED};">{g['away_team']} @ {g['home_team']}</div>
+              <div style="font-family:{FONT_MONO}; font-size:16px; font-weight:700; color:{ACCENT_AMBER}; margin-top:4px;">{g['favored_team']} -{g['favored_by']:.1f}</div>
+              <div style="font-family:{FONT_MONO}; font-size:12px; color:{ACCENT_CYAN}; margin-top:2px;">Vegas: {g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f}</div>
+              {f'<div style="font-family:{FONT_DISPLAY}; font-size:10px; font-weight:800; color:{ACCENT_RED}; letter-spacing:1px; margin-top:6px;">DIFFERENT TEAM FAVORED</div>' if flip else ''}
+            </td></tr>
+          </table>
+        </td>"""
+
+    return f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>{cells}</tr>
     </table>"""
 
 def injury_tag(status):
     if not status or pd.isna(status) or status == "":
         return ""
-    color = {"Questionable": "#e67e22", "Doubtful": "#c0392b"}.get(status, "#999")
-    return f' <span style="color:{color}; font-size:11px; font-weight:bold;">({status})</span>'
+    color = ACCENT_AMBER if status == "Questionable" else ACCENT_RED
+    return f' <span style="color:{color}; font-size:10px; font-weight:800; letter-spacing:0.5px;">{status.upper()}</span>'
 
 def build_props_table(props, stat_cols, title, n=5):
     if props.empty or stat_cols["sort"] not in props.columns:
@@ -64,117 +159,93 @@ def build_props_table(props, stat_cols, title, n=5):
     top = props.dropna(subset=[stat_cols["sort"]]).sort_values(stat_cols["sort"], ascending=False).head(n)
     if top.empty:
         return ""
+
     rows = ""
-    for _, p in top.iterrows():
-        cells = "".join(f"<td style='padding:6px;'>{p[c]}</td>" for c in stat_cols["display"])
+    for i, p in top.iterrows():
+        cells = "".join(
+            f"<td style='padding:9px 8px; font-family:{FONT_MONO}; font-size:13px; color:{TEXT_PRIMARY}; border-bottom:1px solid {CARD_BORDER};'>{p[c]}</td>"
+            for c in stat_cols["display"]
+        )
         tag = injury_tag(p.get("injury_status"))
-        rows += f"<tr><td style='padding:6px;'><b>{p['player_name']}</b>{tag} ({p['team']} vs {p['opponent']})</td>{cells}</tr>"
-    headers = "".join(f"<th style='padding:6px; text-align:left;'>{h}</th>" for h in stat_cols["headers"])
-    return f"""
-    <h3>{title}</h3>
-    <table style="width:100%; border-collapse:collapse;">
-        <tr style="background:#222; color:#fff;">
-            <th style="padding:6px; text-align:left;">Player</th>
-            {headers}
-        </tr>
-        {rows}
-    </table>"""
-
-def build_vegas_comparison_table(comparison, max_rows=8):
-    if comparison is None or comparison.empty:
-        return ""
-    notable = comparison[comparison["has_notable_edge"]].copy()
-    if notable.empty:
-        return "<h2>Vs. Vegas</h2><p>No notable disagreements with the market this week.</p>"
-
-    notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
-    notable = notable.sort_values("sort_key", ascending=False)
-
-    total_notable = len(notable)
-    shown = notable.head(max_rows)
-
-    rows = ""
-    for _, g in shown.iterrows():
-        our_pick = f"{g['favored_team']} -{g['favored_by']:.1f}"
-        vegas_pick = f"{g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f}"
-        flip_badge = ' <span style="color:#c0392b; font-weight:bold;">(FLIP)</span>' if g["picks_flip"] else ""
-
-        total_str = f"{g['projected_total']:.1f} vs {g['total_line']:.1f}" if pd.notna(g.get("total_line")) else "—"
-        winpct_str = f"{g['home_win_prob']:.0%} vs {g['vegas_home_win_prob']:.0%}" if pd.notna(g.get("vegas_home_win_prob")) else "—"
-
-        rows += f"""
-        <tr>
-            <td style="padding:8px;">{g['away_team']} @ {g['home_team']}</td>
-            <td style="padding:8px;">{our_pick}{flip_badge}</td>
-            <td style="padding:8px;">{vegas_pick}</td>
-            <td style="padding:8px;">{total_str}</td>
-            <td style="padding:8px;">{winpct_str}</td>
+        row_bg = "#1a1f27" if i % 2 == 0 else CARD_BG
+        rows += f"""<tr style="background:{row_bg};">
+            <td style="padding:9px 8px; font-family:{FONT_DISPLAY}; font-size:13px; color:{TEXT_PRIMARY}; border-bottom:1px solid {CARD_BORDER};"><b>{p['player_name']}</b>{tag}<br><span style="color:{TEXT_MUTED}; font-size:11px;">{p['team']} vs {p['opponent']}</span></td>
+            {cells}
         </tr>"""
 
-    footer_note = ""
-    if total_notable > max_rows:
-        footer_note = f"<p style='color:#999; font-size:12px;'>Showing top {max_rows} of {total_notable} notable edges this week.</p>"
-
+    headers = "".join(f"<td style='padding:0 8px 6px 8px;'>{h}</td>" for h in stat_cols["headers"])
     return f"""
-    <h2>Vs. Vegas - Notable Edges</h2>
-    <table style="width:100%; border-collapse:collapse;">
-        <tr style="background:#222; color:#fff;">
-            <th style="padding:8px; text-align:left;">Matchup</th>
-            <th style="padding:8px; text-align:left;">Our Pick</th>
-            <th style="padding:8px; text-align:left;">Vegas Pick</th>
-            <th style="padding:8px; text-align:left;">Total (us vs Vegas)</th>
-            <th style="padding:8px; text-align:left;">Home Win% (us vs Vegas)</th>
-        </tr>
-        {rows}
-    </table>
-    {footer_note}
-    <p style="color:#999; font-size:12px;">(FLIP) = we favor a different team than Vegas does entirely, not just a different margin. Thresholds: 3+ pt spread edge, 3+ pt total edge, or 8+ pt win probability edge.</p>"""
+    <div style="font-family:{FONT_DISPLAY}; font-size:12px; font-weight:800; color:{TEXT_PRIMARY}; letter-spacing:0.5px; margin:16px 0 8px 0;">{title}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr style="font-family:{FONT_DISPLAY}; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:{TEXT_MUTED};">
+        <td style="padding:0 8px 6px 8px;">Player</td>
+        {headers}
+      </tr>
+      {rows}
+    </table>"""
 
 def build_email_html(games, props, comparison=None):
     week_games = next_week_games(games)
-    week_label = f"Week {week_games.iloc[0]['week']}" if not week_games.empty else "Upcoming"
+    week_label = f"WEEK {int(week_games.iloc[0]['week'])}" if not week_games.empty else "UPCOMING"
+    week_comparison = None
+    if comparison is not None and not comparison.empty:
+        week_comparison = comparison.merge(week_games[["home_team", "away_team"]], on=["home_team", "away_team"], how="inner")
 
     passing_html = build_props_table(props, {
         "sort": "proj_pass_yards",
         "display": ["proj_pass_attempts", "proj_completions", "proj_pass_yards", "proj_pass_tds"],
-        "headers": ["Att", "Comp", "Pass Yds", "Pass TDs"],
-    }, "Top Passing Projections")
+        "headers": ["Att", "Comp", "Yds", "TDs"],
+    }, "PASSING")
 
     rushing_html = build_props_table(props, {
         "sort": "proj_rush_yards",
         "display": ["proj_carries", "proj_rush_yards", "proj_rush_tds"],
-        "headers": ["Carries", "Rush Yds", "Rush TDs"],
-    }, "Top Rushing Projections")
+        "headers": ["Car", "Yds", "TDs"],
+    }, "RUSHING")
 
     receiving_html = build_props_table(props, {
         "sort": "proj_rec_yards",
         "display": ["proj_targets", "proj_receptions", "proj_rec_yards", "proj_rec_tds"],
-        "headers": ["Targets", "Rec", "Rec Yds", "Rec TDs"],
-    }, "Top Receiving Projections")
+        "headers": ["Tgt", "Rec", "Yds", "TDs"],
+    }, "RECEIVING")
 
-    vegas_html = build_vegas_comparison_table(comparison)
+    edge_cards = build_edge_highlight_cards(week_comparison)
 
     return f"""
     <html>
-    <body style="font-family: Arial, sans-serif; color:#111;">
-        <h1>NFL Edge - {week_label} Picks</h1>
-        <p style="color:#666;">Generated {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}</p>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; background:{BG};">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BG};">
+        <tr><td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
 
-        <h2>Game Predictions</h2>
-        {build_games_table(week_games)}
+            <tr><td style="padding-bottom:20px;">
+              <div style="font-family:{FONT_DISPLAY}; font-size:28px; font-weight:800; letter-spacing:-0.5px; color:{TEXT_PRIMARY};">NFL <span style="color:{ACCENT_AMBER};">EDGE</span></div>
+              <div style="font-family:{FONT_MONO}; font-size:12px; color:{TEXT_MUTED}; margin-top:2px;">{week_label} &middot; {datetime.now().strftime('%b %d, %Y %I:%M %p')}</div>
+            </td></tr>
 
-        {vegas_html}
+            {f'<tr><td style="padding-bottom:16px;">{edge_cards}</td></tr>' if edge_cards else ''}
 
-        <h2>Player Props</h2>
-        <p style="color:#999; font-size:12px;">(Q) = Questionable, (D) = Doubtful - projections already discounted for injury risk. Players ruled Out are excluded entirely.</p>
-        {passing_html}
-        {rushing_html}
-        {receiving_html}
+            <tr><td>{card_open("Slate", "Our line vs. the market, every game")}
+              {build_games_table(week_games, week_comparison)}
+            {card_close()}</td></tr>
 
-        <p style="color:#999; font-size:12px; margin-top:30px;">
-            Projections are model-based estimates from 2 years of play-by-play data.
-            Vegas comparison uses de-vigged lines from DraftKings (via the-odds-api.com) where available.
-        </p>
+            <tr><td>{card_open("Player Projections", "(Q)/(D) = injury-discounted \u00b7 Out players excluded")}
+              {passing_html}
+              {rushing_html}
+              {receiving_html}
+            {card_close()}</td></tr>
+
+            <tr><td style="padding-top:8px;">
+              <div style="font-family:{FONT_DISPLAY}; font-size:11px; color:{TEXT_MUTED}; line-height:1.5;">
+                Model-based projections from 2 years of play-by-play data plus current-season adjustments.
+                Vegas lines via DraftKings (the-odds-api.com) where available. Not betting advice.
+              </div>
+            </td></tr>
+
+          </table>
+        </td></tr>
+      </table>
     </body>
     </html>"""
 
@@ -191,7 +262,7 @@ def send_email(html_content, week_label):
         json={
             "from": "onboarding@resend.dev",
             "to": [recipient],
-            "subject": f"NFL Edge Picks - {week_label} - {datetime.now().strftime('%b %d, %Y')}",
+            "subject": f"NFL Edge - {week_label} - {datetime.now().strftime('%b %d, %Y')}",
             "html": html_content,
         },
         timeout=30,
@@ -209,11 +280,11 @@ def main():
         comparison = pd.read_csv(comparison_path)
         print(f"  Loaded Vegas comparison ({len(comparison)} games)")
     else:
-        print("  No Vegas comparison found - email will skip that section")
+        print("  No Vegas comparison found - email will show '\u2014' for Vegas lines")
 
     print("Building email...")
     week_games = next_week_games(games)
-    week_label = f"Week {week_games.iloc[0]['week']}" if not week_games.empty else "Upcoming"
+    week_label = f"Week {int(week_games.iloc[0]['week'])}" if not week_games.empty else "Upcoming"
     html = build_email_html(games, props, comparison)
 
     print("Sending email via Resend...")
