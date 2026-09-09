@@ -1,76 +1,57 @@
 """
 team_overrides.py
-Manual adjustments for offseason changes our stats-only model can't see yet:
-trades, major free agent signings, coordinator changes, etc. These apply as
-small nudges to a team's EPA-based ratings before real 2026 data exists to
-correct it automatically (our recency weighting handles this naturally once
-a team has played 4-5 real games - this file is a bridge for the first few
-weeks of the season).
+Manual adjustments for offseason changes our AUTOMATIC systems can't see.
+
+As of this version, auto_defense_adjustments.py automatically detects
+defensive personnel changes (trades, signings) by following each player's
+real sack/interception history via current_roster.csv - no manual research
+needed for that category anymore. That's why entries like the Myles Garrett
+trade (LA/CLE) and the McDuffie/Watson move (LA/KC) were REMOVED from here -
+the automatic system now handles them on its own, and leaving them here too
+would double-count the adjustment.
+
+What's left here is what automation genuinely can't capture yet:
+- Offensive skill-position team-strength effects (our player-continuity
+  system correctly projects an individual player's OWN stats on their new
+  team, but doesn't yet roll that up into the team's overall offensive EPA
+  rating the way we do for defense)
+- Judgment calls with no clean statistical proxy (a QB competition, a
+  coordinator change, "this team's identity changed" type calls)
 
 HOW TO USE:
-Add an entry below for any team with a real, meaningful offseason change.
-Keep adjustments modest and conservative - a single elite player rarely
-swings a team's EPA/play by more than ~0.02-0.03, and a role-player addition
-is worth much less than that (~0.005-0.01). Bigger adjustments are reserved
-for genuinely historic moves (a reigning DPOY changing teams, for example).
+Add an entry below only for changes that don't already flow through
+current_roster.csv + our automatic systems. Keep adjustments modest -
+~0.01-0.02 for a real, material offensive addition; reserve anything larger
+for something historically significant.
 
 REMOVE entries as the season provides real data on a team - by week 4-5 our
-recency weighting naturally takes over, and a stale manual override at that
-point does more harm than good.
+recency weighting naturally takes over.
 
-Researched as of Sept 8, 2026 (day before Week 1). Not exhaustive - these
-are the moves with clear, well-reported, material positional impact. Smaller
-depth-chart moves are left out since they're hard to size confidently.
+Last reviewed Sept 9, 2026 (Week 1).
 """
 
 TEAM_ADJUSTMENTS = {
-    "LA": {
-        "def_epa_per_play_allowed": -0.035,
-        "reason": "Traded for Myles Garrett (reigning DPOY, set the single-season sack record) AND "
-                  "traded for/extended All-Pro CB Trent McDuffie AND signed CB Jaylen Watson (McDuffie's "
-                  "ex-Chiefs running mate) - a full defensive overhaul. Partially offset by trading away "
-                  "Jared Verse (a 2x Pro Bowl edge rusher) as part of the Garrett deal.",
-    },
-    "CLE": {
-        "def_epa_per_play_allowed": 0.02,
-        "reason": "Traded away Myles Garrett - real downgrade to their pass rush.",
-    },
-    "KC": {
-        "def_epa_per_play_allowed": 0.02,
-        "reason": "Lost both starting corners (Trent McDuffie traded, Jaylen Watson left in free agency) "
-                  "to the Rams. Drafted a rookie CB (Delane) as a replacement, but rookies rarely replace "
-                  "lost All-Pro production in year one.",
-    },
     "BUF": {
         "epa_per_play": 0.015,
         "reason": "Added WR D.J. Moore - Josh Allen hasn't had a receiver top 821 receiving yards since "
-                  "2023, so this fills a real offensive gap.",
+                  "2023. Not caught by the automatic system since that only models defensive personnel "
+                  "value, not offensive skill-position impact on team-level offensive EPA.",
     },
     "NO": {
         "epa_per_play": 0.012,
         "reason": "Signed RB Travis Etienne (three 1,000-yard seasons in Jacksonville) after finishing "
-                  "28th in rushing last season - real running-game upgrade for 2nd-year QB Tyler Shough.",
-    },
-    "CIN": {
-        "def_epa_per_play_allowed": -0.015,
-        "reason": "Defensive line overhaul: signed DL Jonathan Allen and Boye Mafe, traded for an "
-                  "interior lineman (Lawrence) - meaningful pass rush upgrade.",
-    },
-    "WAS": {
-        "def_epa_per_play_allowed": -0.008,
-        "reason": "Signed pass rushers Jadeveon Oweh and K'Lavon Chaisson to address a subpar pass rush - "
-                  "real but more modest upgrade than the moves above.",
+                  "28th in rushing last season. Same reasoning as BUF above.",
     },
     "ATL": {
         "epa_per_play": 0.0,  # intentionally not adjusted - see reason
         "reason": "Tua Tagovailoa confirmed Week 1 starter over Penix - flagged for awareness, no "
                   "adjustment applied (too uncertain to size confidently which QB outperforms our "
-                  "stats-only projection before either has taken a real 2026 snap).",
+                  "stats-only projection before either has taken a real 2026 snap). No statistical "
+                  "proxy could catch this either, since it's a competition outcome, not a personnel change.",
     },
 
-    # Add more entries here as you identify meaningful offseason changes.
-    # A move you're not confident sizing is fine to list with 0.0 adjustments -
-    # it keeps the reasoning documented even if we don't act on it yet.
+    # Add more entries here only for offense-side moves or judgment calls -
+    # defensive personnel changes should be caught automatically now.
 }
 
 def apply_overrides(team_stats):
