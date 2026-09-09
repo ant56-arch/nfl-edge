@@ -33,6 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from team_overrides import apply_overrides
+from auto_defense_adjustments import apply_auto_adjustments
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "processed")
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
@@ -52,6 +53,7 @@ def load_data():
     player_stats = pd.read_csv(os.path.join(PROCESSED_DIR, "player_stats.csv"))
     team_stats = pd.read_csv(os.path.join(PROCESSED_DIR, "team_stats.csv")).set_index("team")
     team_stats = apply_overrides(team_stats)
+    team_stats = apply_auto_adjustments(team_stats)
     schedules = pd.read_csv(os.path.join(RAW_DIR, "schedules.csv"))
     current_roster = pd.read_csv(os.path.join(RAW_DIR, "current_roster.csv"), low_memory=False)
 
