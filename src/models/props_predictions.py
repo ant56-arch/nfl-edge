@@ -42,6 +42,16 @@ SEASON_RECENCY_WEIGHT = {0: 1.0, 1: 0.5}  # 0 = most recent season, 1 = season b
 MATCHUP_SCALING_FACTOR = 2.5  # converts opponent EPA-allowed differential into a % multiplier
 MIN_GAMES_PLAYED = 3  # ignore small-sample noise (injury replacements, garbage time, etc.)
 
+# Minimum CAREER volume (across the blended seasons) before we trust a rate
+# stat (yards per target/carry/attempt) enough to project from it. Below
+# this, a single fluke play (a sack, a broken trick play) can dominate the
+# average and produce a nonsensical or even negative projection.
+MIN_CAREER_VOLUME = {
+    "targets": 8,
+    "carries": 8,
+    "pass_attempts": 10,
+}
+
 # How much to discount projected volume based on injury report status.
 # "Out" is handled separately (excluded entirely, not just discounted).
 INJURY_MULTIPLIERS = {
@@ -70,10 +80,18 @@ def blend_player_seasons(player_stats):
     Collapse multiple season rows per player into one blended profile,
     weighting the more recent season more heavily. Rate/efficiency columns
     get a weighted average; count columns (games_played) get summed.
+
+    Also carries through raw career VOLUME totals (targets, carries,
+    pass_attempts summed across seasons, unweighted) so callers can filter
+    out small-sample noise - a player with 1-2 career pass attempts (often
+    including a sack, which counts as a big negative-yardage "attempt") can
+    produce a wildly unrepresentative yards_per_pass_attempt. The rate itself
+    isn't wrong given the data, it's just meaningless at that sample size.
     """
     rate_cols = [c for c in player_stats.columns if any(
         k in c for k in ["_per_game", "_per_target", "_per_carry", "_per_pass_attempt", "_rate"]
     )]
+    volume_cols = [c for c in ["targets", "carries", "pass_attempts"] if c in player_stats.columns]
 
     blended_rows = []
     for player_id, g in player_stats.groupby("player_id"):
@@ -85,6 +103,9 @@ def blend_player_seasons(player_stats):
         weights = g.index.map(lambda i: SEASON_RECENCY_WEIGHT.get(i, 0.25))
         row = {"player_id": player_id, "player_name": g.iloc[0]["player_name"]}
         row["total_games_played"] = g["games_played"].sum()
+
+        for col in volume_cols:
+            row[f"{col}_career_total"] = g[col].fillna(0).sum()
 
         for col in rate_cols:
             valid = g[col].notna()
@@ -156,25 +177,26 @@ def project_player(row, team, opponent, team_stats, league_avgs, injury_status=N
         "injury_status": injury_status if injury_status else "",
     }
 
-    # Receiving
-    if pd.notna(row.get("targets_per_game")):
+    # Receiving - only project if we have a real career sample of targets,
+    # not a single fluke play
+    if pd.notna(row.get("targets_per_game")) and row.get("targets_career_total", 0) >= MIN_CAREER_VOLUME["targets"]:
         proj["proj_targets"] = round(row["targets_per_game"] * injury_disc, 1)
         proj["proj_receptions"] = round(proj["proj_targets"] * row.get("catch_rate", np.nan), 1)
-        proj["proj_rec_yards"] = round(proj["proj_targets"] * row.get("yards_per_target", 0) * pass_mult, 1)
-        proj["proj_rec_tds"] = round(proj["proj_targets"] * row.get("rec_td_rate", 0) * pass_mult, 2)
+        proj["proj_rec_yards"] = round(max(proj["proj_targets"] * row.get("yards_per_target", 0) * pass_mult, 0), 1)
+        proj["proj_rec_tds"] = round(max(proj["proj_targets"] * row.get("rec_td_rate", 0) * pass_mult, 0), 2)
 
-    # Rushing
-    if pd.notna(row.get("carries_per_game")):
+    # Rushing - same volume floor
+    if pd.notna(row.get("carries_per_game")) and row.get("carries_career_total", 0) >= MIN_CAREER_VOLUME["carries"]:
         proj["proj_carries"] = round(row["carries_per_game"] * injury_disc, 1)
-        proj["proj_rush_yards"] = round(proj["proj_carries"] * row.get("yards_per_carry", 0) * rush_mult, 1)
-        proj["proj_rush_tds"] = round(proj["proj_carries"] * row.get("rush_td_rate", 0) * rush_mult, 2)
+        proj["proj_rush_yards"] = round(max(proj["proj_carries"] * row.get("yards_per_carry", 0) * rush_mult, 0), 1)
+        proj["proj_rush_tds"] = round(max(proj["proj_carries"] * row.get("rush_td_rate", 0) * rush_mult, 0), 2)
 
-    # Passing
-    if pd.notna(row.get("pass_attempts_per_game")) and row["pass_attempts_per_game"] > 5:
+    # Passing - same volume floor
+    if pd.notna(row.get("pass_attempts_per_game")) and row.get("pass_attempts_career_total", 0) >= MIN_CAREER_VOLUME["pass_attempts"]:
         proj["proj_pass_attempts"] = round(row["pass_attempts_per_game"] * injury_disc, 1)
         proj["proj_completions"] = round(proj["proj_pass_attempts"] * row.get("completion_rate", np.nan), 1)
-        proj["proj_pass_yards"] = round(proj["proj_pass_attempts"] * row.get("yards_per_pass_attempt", 0) * pass_mult, 1)
-        proj["proj_pass_tds"] = round(proj["proj_pass_attempts"] * row.get("pass_td_rate", 0) * pass_mult, 2)
+        proj["proj_pass_yards"] = round(max(proj["proj_pass_attempts"] * row.get("yards_per_pass_attempt", 0) * pass_mult, 0), 1)
+        proj["proj_pass_tds"] = round(max(proj["proj_pass_attempts"] * row.get("pass_td_rate", 0) * pass_mult, 0), 2)
 
     return proj
 
