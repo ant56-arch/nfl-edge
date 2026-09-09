@@ -1,11 +1,10 @@
 name: Weekly NFL Picks
 
 on:
-  workflow_dispatch:  # lets you manually trigger it too, for testing
+  workflow_dispatch:
   schedule:
-    # Cron times are in UTC. NFL business happens in US time zones, so:
-    - cron: "0 12 * * 2"  # Tuesday 8:00 AM ET (12:00 UTC) - early-week outlook
-    - cron: "0 12 * * 5"  # Friday 8:00 AM ET (12:00 UTC) - final pre-weekend picks
+    - cron: "0 12 * * 2"  # Tuesday 8:00 AM ET - early-week outlook
+    - cron: "0 12 * * 5"  # Friday 8:00 AM ET - final pre-weekend picks
 
 jobs:
   generate-and-send-picks:
@@ -23,6 +22,9 @@ jobs:
 
       - name: Fetch data
         run: python src/fetch_data.py
+
+      - name: Fetch injury report
+        run: python src/fetch_injuries.py
 
       - name: Build features
         run: python src/build_features.py
