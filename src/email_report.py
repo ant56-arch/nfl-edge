@@ -3,15 +3,9 @@ email_report.py
 Formats game predictions + player props into a clean HTML email and sends
 it via Resend's API - same delivery mechanism as BTS Edge.
 
-Required GitHub Secrets (this repo, matching bts-edge's naming):
+Required GitHub Secrets:
   RESEND_API_KEY   - your Resend API key
   RECIPIENT_EMAIL  - where picks get sent
-
-Note: since we're using the default onboarding@resend.dev sending address
-(no custom domain verified), Resend only allows sending TO the email address
-associated with your Resend account. That's fine here since you're the only
-recipient - but if you ever want to send to a different inbox, you'd need to
-verify a domain in Resend first.
 """
 
 import pandas as pd
@@ -28,7 +22,6 @@ def load_predictions():
     return games, props
 
 def next_week_games(games):
-    """Only show the soonest upcoming week, not the entire season."""
     if games.empty:
         return games
     next_week = games.sort_values(["season", "week"]).iloc[0][["season", "week"]]
@@ -59,6 +52,12 @@ def build_games_table(games):
         {rows}
     </table>"""
 
+def injury_tag(status):
+    if not status or pd.isna(status) or status == "":
+        return ""
+    color = {"Questionable": "#e67e22", "Doubtful": "#c0392b"}.get(status, "#999")
+    return f' <span style="color:{color}; font-size:11px; font-weight:bold;">({status})</span>'
+
 def build_props_table(props, stat_cols, title, n=5):
     if props.empty or stat_cols["sort"] not in props.columns:
         return ""
@@ -68,7 +67,8 @@ def build_props_table(props, stat_cols, title, n=5):
     rows = ""
     for _, p in top.iterrows():
         cells = "".join(f"<td style='padding:6px;'>{p[c]}</td>" for c in stat_cols["display"])
-        rows += f"<tr><td style='padding:6px;'><b>{p['player_name']}</b> ({p['team']} vs {p['opponent']})</td>{cells}</tr>"
+        tag = injury_tag(p.get("injury_status"))
+        rows += f"<tr><td style='padding:6px;'><b>{p['player_name']}</b>{tag} ({p['team']} vs {p['opponent']})</td>{cells}</tr>"
     headers = "".join(f"<th style='padding:6px; text-align:left;'>{h}</th>" for h in stat_cols["headers"])
     return f"""
     <h3>{title}</h3>
@@ -87,7 +87,6 @@ def build_vegas_comparison_table(comparison, max_rows=8):
     if notable.empty:
         return "<h2>Vs. Vegas</h2><p>No notable disagreements with the market this week.</p>"
 
-    # Biggest disagreements first (flips in who's favored are the most interesting)
     notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
     notable = notable.sort_values("sort_key", ascending=False)
 
@@ -167,6 +166,7 @@ def build_email_html(games, props, comparison=None):
         {vegas_html}
 
         <h2>Player Props</h2>
+        <p style="color:#999; font-size:12px;">(Q) = Questionable, (D) = Doubtful - projections already discounted for injury risk. Players ruled Out are excluded entirely.</p>
         {passing_html}
         {rushing_html}
         {receiving_html}
