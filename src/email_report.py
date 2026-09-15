@@ -15,10 +15,12 @@ Required GitHub Secrets:
 import pandas as pd
 import numpy as np
 import requests
+import json
 import os
 from datetime import datetime
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+TRACKING_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "tracking")
 
 # Set to "dark" or "light". Gmail's automatic dark-mode recoloring can
 # override a dark-designed email's own colors even with !important and
@@ -146,7 +148,7 @@ def build_edge_highlight_cards(comparison, max_cards=3):
 
     cells = ""
     for _, g in top.iterrows():
-        flip = g["favored_team"] != g["vegas_favored_team"]
+        flip = g["model_favored_team"] != g["vegas_favored_team"]
         border_color = ACCENT_RED if flip else ACCENT_AMBER
         flip_line = ""
         if flip:
@@ -156,7 +158,7 @@ def build_edge_highlight_cards(comparison, max_cards=3):
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + BG + """; border:1px solid """ + border_color + """; border-radius:8px;">
             <tr><td style="padding:12px;">
               <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """;">""" + g['away_team'] + " @ " + g['home_team'] + """</div>
-              <div style="font-family:""" + FONT_MONO + """; font-size:16px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:4px;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</div>
+              <div style="font-family:""" + FONT_MONO + """; font-size:16px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:4px;">""" + g['model_favored_team'] + " -" + format(g['model_favored_by'], ".1f") + """</div>
               <div style="font-family:""" + FONT_MONO + """; font-size:12px; color:""" + ACCENT_CYAN + """; margin-top:2px;">Vegas: """ + g['vegas_favored_team'] + " -" + format(abs(g['vegas_home_favored_by']), ".1f") + """</div>
               """ + flip_line + """
             </td></tr>
@@ -167,6 +169,50 @@ def build_edge_highlight_cards(comparison, max_cards=3):
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr>""" + cells + """</tr>
     </table>"""
+
+def load_accuracy_summary():
+    path = os.path.join(TRACKING_DIR, "accuracy_summary.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        summary = json.load(f)
+    return summary if summary.get("n_graded_games", 0) > 0 else None
+
+def build_accuracy_scorecard(summary):
+    """A running 'are we actually sharp' scorecard: our market-blended line's
+    real accuracy vs Vegas itself, so the claim is checkable every week
+    instead of taken on faith."""
+    if summary is None:
+        return ""
+
+    def stat_row(window_key, window_label):
+        window = summary.get(window_key)
+        if not window:
+            return ""
+        sharp, vegas = window.get("sharp", {}), window.get("vegas", {})
+        if not sharp or not vegas:
+            return ""
+        return """
+        <tr>
+          <td style="padding:8px 8px; font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + window_label + """ <span style="color:""" + TEXT_MUTED + """;">(""" + str(sharp.get('n_games', 0)) + """ games)</span></td>
+          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(sharp['pick_accuracy'], ".0%") + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(sharp['spread_mae'], ".1f") + """</span></td>
+          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(vegas['pick_accuracy'], ".0%") + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></td>
+        </tr>"""
+
+    rows = stat_row("season_to_date", "Season") + stat_row("last_4_weeks", "Last 4 wks")
+    if not rows:
+        return ""
+
+    return """
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
+        <td style="padding:0 8px 8px 8px;">Window</td>
+        <td style="padding:0 8px 8px 8px;">Us (pick% / spread err)</td>
+        <td style="padding:0 8px 8px 8px;">Vegas (pick% / spread err)</td>
+      </tr>
+      """ + rows + """
+    </table>
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:10px;">Graded against actual final scores. Spread err = avg points off the actual margin (lower is sharper).</div>"""
 
 def injury_tag(status):
     if not status or pd.isna(status) or status == "":
@@ -204,7 +250,7 @@ def build_props_table(props, stat_cols, title, n=5):
       """ + rows + """
     </table>"""
 
-def build_email_html(games, props, comparison=None):
+def build_email_html(games, props, comparison=None, accuracy_summary=None):
     week_games = next_week_games(games)
     week_label = "WEEK " + str(int(week_games.iloc[0]['week'])) if not week_games.empty else "UPCOMING"
     week_comparison = None
@@ -231,6 +277,9 @@ def build_email_html(games, props, comparison=None):
 
     edge_cards = build_edge_highlight_cards(week_comparison)
     edge_section = ('<tr><td style="padding-bottom:16px;">' + edge_cards + '</td></tr>') if edge_cards else ""
+
+    scorecard_html = build_accuracy_scorecard(accuracy_summary)
+    scorecard_section = ('<tr><td>' + card_open("Track Record", "Graded against real final scores, not vibes") + scorecard_html + card_close() + '</td></tr>') if scorecard_html else ""
 
     props_subtitle = "(Q)/(D) = injury-discounted " + MIDDOT + " Out players excluded"
     generated_line = datetime.now().strftime('%b %d, %Y %I:%M %p')
@@ -269,6 +318,8 @@ def build_email_html(games, props, comparison=None):
               """ + build_games_table(week_games, week_comparison) + """
             """ + card_close() + """</td></tr>
 
+            """ + scorecard_section + """
+
             <tr><td>""" + card_open("Player Projections", props_subtitle) + """
               """ + passing_html + """
               """ + rushing_html + """
@@ -277,8 +328,9 @@ def build_email_html(games, props, comparison=None):
 
             <tr><td style="padding-top:8px;">
               <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; line-height:1.5;">
-                Model-based projections from 2 years of play-by-play data plus current-season adjustments.
-                Vegas lines via DraftKings (the-odds-api.com) where available. Not betting advice.
+                Our line blends a coefficients-fit EPA model with the live market line (weights validated on
+                held-out seasons, see src/fit_model.py). Vegas lines via DraftKings (the-odds-api.com) where
+                available. Not betting advice.
               </div>
             </td></tr>
 
@@ -322,10 +374,16 @@ def main():
     else:
         print("  No Vegas comparison found - email will show a dash for Vegas lines")
 
+    accuracy_summary = load_accuracy_summary()
+    if accuracy_summary:
+        print("  Loaded accuracy track record (" + str(accuracy_summary["n_graded_games"]) + " graded games)")
+    else:
+        print("  No graded prediction history yet - track record section will be omitted")
+
     print("Building email...")
     week_games = next_week_games(games)
     week_label = "Week " + str(int(week_games.iloc[0]['week'])) if not week_games.empty else "Upcoming"
-    html = build_email_html(games, props, comparison)
+    html = build_email_html(games, props, comparison, accuracy_summary)
 
     print("Sending email via Resend...")
     send_email(html, week_label)

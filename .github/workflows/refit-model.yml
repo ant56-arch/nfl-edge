@@ -1,0 +1,41 @@
+name: Refit Model Coefficients
+
+# Re-fits every coefficient in game_predictions.py against real historical
+# outcomes (see src/fit_model.py) and validates the fit on held-out seasons.
+# This is intentionally separate from weekly-picks.yml: it downloads a
+# decade-plus of play-by-play, which is slow and unnecessary to redo twice a
+# week. Run it monthly (enough to pick up each season's growing sample as it
+# progresses) and any time the feature set or fitting method changes.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 10 1 * *"  # 1st of each month, 6am ET
+
+permissions:
+  contents: write
+
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fit + validate model coefficients
+        run: python src/fit_model.py
+
+      - name: Commit updated coefficients
+        run: |
+          git config user.name "nfl-edge-bot"
+          git config user.email "actions@github.com"
+          git add src/models/fitted_coefficients.json
+          git diff --cached --quiet || git commit -m "Refit model coefficients against latest historical data"
+          git push

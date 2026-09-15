@@ -4,12 +4,19 @@ Joins our own model's projections against real sportsbook lines and flags
 games/props where we meaningfully disagree with the market - these are the
 "value" spots worth a second look.
 
+IMPORTANT: edges are computed from the PURE, unblended model output
+(model_spread / model_total / model_home_win_prob), not the headline
+"projected_spread" shown elsewhere - that number is already blended with
+the market (see game_predictions.py), so comparing it back against the
+market would trivially show almost no disagreement. The pure model is what
+can actually disagree with Vegas; the blended number is what's most accurate.
+
 EDGE DEFINITIONS:
-  spread_edge = our_projected_home_favor - vegas_home_favor
+  spread_edge = our_model_home_favor - vegas_home_favor
     Positive = we like the home team MORE than Vegas does.
-  total_edge = our_projected_total - vegas_total
+  total_edge = our_model_total - vegas_total
     Positive = we expect a higher-scoring game than the market does.
-  win_prob_edge = our_home_win_prob - vegas_home_win_prob (de-vigged)
+  win_prob_edge = our_model_home_win_prob - vegas_home_win_prob (de-vigged)
     Positive = we're more confident in the home team than the market is.
 
 THRESHOLDS (starting points, adjust as you get a feel for the model):
@@ -48,9 +55,9 @@ def compare(predictions, odds):
     if merged.empty:
         return merged
 
-    merged["spread_edge"] = merged["projected_spread"] - merged["vegas_home_favored_by"]
-    merged["total_edge"] = merged["projected_total"] - merged["total_line"]
-    merged["win_prob_edge"] = merged["home_win_prob"] - merged["vegas_home_win_prob"]
+    merged["spread_edge"] = merged["model_spread"] - merged["vegas_home_favored_by"]
+    merged["total_edge"] = merged["model_total"] - merged["total_line"]
+    merged["win_prob_edge"] = merged["model_home_win_prob"] - merged["vegas_home_win_prob"]
 
     merged["notable_spread_edge"] = merged["spread_edge"].abs() >= SPREAD_EDGE_THRESHOLD
     merged["notable_total_edge"] = merged["total_edge"].abs() >= TOTAL_EDGE_THRESHOLD
@@ -61,11 +68,17 @@ def compare(predictions, odds):
     )
 
     # Readable pick strings, and whether we disagree on who's even favored
-    # (a bigger deal than just disagreeing on the margin)
+    # (a bigger deal than just disagreeing on the margin). Uses the PURE
+    # model pick, not the blended "sharp" one - the blended line is designed
+    # to hug the market, so it's rarely the side that actually disagrees.
     merged["vegas_favored_team"] = merged.apply(
         lambda r: r["home_team"] if r["vegas_home_favored_by"] > 0 else r["away_team"], axis=1
     )
-    merged["picks_flip"] = merged["favored_team"] != merged["vegas_favored_team"]
+    merged["model_favored_team"] = merged.apply(
+        lambda r: r["home_team"] if r["model_spread"] > 0 else r["away_team"], axis=1
+    )
+    merged["model_favored_by"] = merged["model_spread"].abs()
+    merged["picks_flip"] = merged["model_favored_team"] != merged["vegas_favored_team"]
 
     return merged
 
@@ -92,8 +105,8 @@ def main():
 
     if not notable.empty:
         print("\nNotable disagreements with the market:")
-        cols = ["home_team", "away_team", "projected_spread", "vegas_home_favored_by", "spread_edge",
-                "projected_total", "total_line", "total_edge", "home_win_prob", "vegas_home_win_prob", "win_prob_edge"]
+        cols = ["home_team", "away_team", "model_spread", "vegas_home_favored_by", "spread_edge",
+                "model_total", "total_line", "total_edge", "model_home_win_prob", "vegas_home_win_prob", "win_prob_edge"]
         print(notable[cols].round(3).to_string(index=False))
 
     print(f"\nSaved full comparison to {out_path}")
