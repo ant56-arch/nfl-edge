@@ -115,7 +115,12 @@ def build_dataset(off_walk, def_walk, schedules):
 
     games["actual_margin"] = games["home_score"] - games["away_score"]
     games["actual_total"] = games["home_score"] + games["away_score"]
-    games["vegas_home_favored_by"] = -games["spread_line"]
+    # nflverse's games.csv "spread_line" is the home team's expected margin
+    # directly (positive = home favored) - NOT the traditional bookmaker
+    # "-3 favorite" notation that fetch_odds.py's the-odds-api integration
+    # uses. Verified empirically: spread_line correlates +0.43 with actual
+    # home margin; -spread_line correlates -0.43 (confirms the sign).
+    games["vegas_home_favored_by"] = games["spread_line"]
     games["vegas_total"] = games["total_line"]
     games["vegas_home_ml_prob"] = games["home_moneyline"].apply(_moneyline_to_prob)
     games["vegas_away_ml_prob"] = games["away_moneyline"].apply(_moneyline_to_prob)
