@@ -120,7 +120,12 @@ def summarize(log):
             continue
         window_summary = {}
         for label in ["model", "sharp", "vegas"]:
+            wins = int(window_df[f"{label}_correct_pick"].sum())
+            losses = int(len(window_df)) - wins
             window_summary[label] = {
+                "wins": wins,
+                "losses": losses,
+                "record": f"{wins}-{losses}",
                 "pick_accuracy": round(float(window_df[f"{label}_correct_pick"].mean()), 3),
                 "spread_mae": round(float(window_df[f"{label}_spread_error"].mean()), 2),
                 "total_mae": round(float(window_df[f"{label}_total_error"].mean()), 2),
@@ -154,7 +159,7 @@ def main():
         for label in ["model", "sharp", "vegas"]:
             s = std.get(label, {})
             if s:
-                print(f"  {label:>6}: {s['pick_accuracy']:.1%} straight-up | "
+                print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | "
                       f"spread MAE {s['spread_mae']:.2f} | total MAE {s['total_mae']:.2f} | Brier {s['brier_score']:.4f}")
 
     print(f"\nSaved tracking log to {LOG_PATH} and summary to {SUMMARY_PATH}")

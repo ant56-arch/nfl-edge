@@ -1,8 +1,11 @@
 {
   "n_graded_games": 570,
-  "last_updated": "2026-09-16T14:28:29.305297+00:00",
+  "last_updated": "2026-09-16T14:59:46.072516+00:00",
   "season_to_date": {
     "model": {
+      "wins": 369,
+      "losses": 201,
+      "record": "369-201",
       "pick_accuracy": 0.647,
       "spread_mae": 10.15,
       "total_mae": 10.25,
@@ -10,6 +13,9 @@
       "n_games": 570
     },
     "sharp": {
+      "wins": 389,
+      "losses": 181,
+      "record": "389-181",
       "pick_accuracy": 0.682,
       "spread_mae": 9.69,
       "total_mae": 10.07,
@@ -17,6 +23,9 @@
       "n_games": 570
     },
     "vegas": {
+      "wins": 389,
+      "losses": 181,
+      "record": "389-181",
       "pick_accuracy": 0.682,
       "spread_mae": 9.69,
       "total_mae": 10.1,
@@ -26,6 +35,9 @@
   },
   "last_4_weeks": {
     "model": {
+      "wins": 10,
+      "losses": 3,
+      "record": "10-3",
       "pick_accuracy": 0.769,
       "spread_mae": 8.36,
       "total_mae": 10.94,
@@ -33,6 +45,9 @@
       "n_games": 13
     },
     "sharp": {
+      "wins": 10,
+      "losses": 3,
+      "record": "10-3",
       "pick_accuracy": 0.769,
       "spread_mae": 8.58,
       "total_mae": 10.96,
@@ -40,6 +55,9 @@
       "n_games": 13
     },
     "vegas": {
+      "wins": 10,
+      "losses": 3,
+      "record": "10-3",
       "pick_accuracy": 0.769,
       "spread_mae": 8.58,
       "total_mae": 11.04,

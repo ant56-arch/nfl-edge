@@ -180,10 +180,20 @@ def load_accuracy_summary():
 
 def build_accuracy_scorecard(summary):
     """A running 'are we actually sharp' scorecard: our market-blended line's
-    real accuracy vs Vegas itself, so the claim is checkable every week
-    instead of taken on faith."""
+    real W-L record and accuracy vs Vegas itself, so the claim is checkable
+    every week instead of taken on faith."""
     if summary is None:
         return ""
+
+    season = summary.get("season_to_date", {})
+    sharp_season = season.get("sharp", {})
+
+    headline = ""
+    if sharp_season.get("record"):
+        headline = """
+        <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; letter-spacing:0.5px;">SEASON-TO-DATE STRAIGHT-UP RECORD</div>
+        <div style="font-family:""" + FONT_MONO + """; font-size:26px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:2px;">""" + sharp_season['record'] + """ <span style="font-size:14px; color:""" + TEXT_MUTED + """; font-weight:400;">(""" + format(sharp_season['pick_accuracy'], ".0%") + """)</span></div>
+        """
 
     def stat_row(window_key, window_label):
         window = summary.get(window_key)
@@ -195,24 +205,24 @@ def build_accuracy_scorecard(summary):
         return """
         <tr>
           <td style="padding:8px 8px; font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + window_label + """ <span style="color:""" + TEXT_MUTED + """;">(""" + str(sharp.get('n_games', 0)) + """ games)</span></td>
-          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(sharp['pick_accuracy'], ".0%") + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(sharp['spread_mae'], ".1f") + """</span></td>
-          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(vegas['pick_accuracy'], ".0%") + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></td>
+          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + sharp['record'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(sharp['spread_mae'], ".1f") + """</span></td>
+          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + vegas['record'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></td>
         </tr>"""
 
     rows = stat_row("season_to_date", "Season") + stat_row("last_4_weeks", "Last 4 wks")
     if not rows:
         return ""
 
-    return """
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    return headline + """
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
       <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
         <td style="padding:0 8px 8px 8px;">Window</td>
-        <td style="padding:0 8px 8px 8px;">Us (pick% / spread err)</td>
-        <td style="padding:0 8px 8px 8px;">Vegas (pick% / spread err)</td>
+        <td style="padding:0 8px 8px 8px;">Us (W-L / spread err)</td>
+        <td style="padding:0 8px 8px 8px;">Vegas (W-L / spread err)</td>
       </tr>
       """ + rows + """
     </table>
-    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:10px;">Graded against actual final scores. Spread err = avg points off the actual margin (lower is sharper).</div>"""
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:10px;">Record = correct straight-up picks, graded against actual final scores. Spread err = avg points off the actual margin (lower is sharper).</div>"""
 
 def injury_tag(status):
     if not status or pd.isna(status) or status == "":
