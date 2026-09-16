@@ -179,20 +179,28 @@ def load_accuracy_summary():
     return summary if summary.get("n_graded_games", 0) > 0 else None
 
 def build_accuracy_scorecard(summary):
-    """A running 'are we actually sharp' scorecard: our market-blended line's
-    real W-L record and accuracy vs Vegas itself, so the claim is checkable
-    every week instead of taken on faith."""
+    """A running 'are we actually sharp' scorecard for the CURRENT season only
+    - the 2024-2025 backfill exists so the model could be validated before
+    launch, but the email only shows how the live system is doing this year.
+    (Full history stays in data/tracking/accuracy_summary.json's "all_time"
+    key for backend reference.)"""
     if summary is None:
         return ""
 
-    season = summary.get("season_to_date", {})
-    sharp_season = season.get("sharp", {})
+    year = summary.get("current_season_year", "")
+    current = summary.get("current_season", {})
+    sharp_current = current.get("sharp", {})
 
-    headline = ""
-    if sharp_season.get("record"):
-        headline = """
-        <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; letter-spacing:0.5px;">SEASON-TO-DATE STRAIGHT-UP RECORD</div>
-        <div style="font-family:""" + FONT_MONO + """; font-size:26px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:2px;">""" + sharp_season['record'] + """ <span style="font-size:14px; color:""" + TEXT_MUTED + """; font-weight:400;">(""" + format(sharp_season['pick_accuracy'], ".0%") + """)</span></div>
+    if not sharp_current:
+        return """
+        <div style="font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_MUTED + """; line-height:1.5;">
+          Tracking started for the """ + str(year) + """ season - no games graded yet. Check back once the first
+          week's games wrap.
+        </div>"""
+
+    headline = """
+        <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; letter-spacing:0.5px;">""" + str(year) + """ SEASON STRAIGHT-UP RECORD</div>
+        <div style="font-family:""" + FONT_MONO + """; font-size:26px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:2px;">""" + sharp_current['record'] + """ <span style="font-size:14px; color:""" + TEXT_MUTED + """; font-weight:400;">(""" + format(sharp_current['pick_accuracy'], ".0%") + """)</span></div>
         """
 
     def stat_row(window_key, window_label):
@@ -209,7 +217,7 @@ def build_accuracy_scorecard(summary):
           <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + vegas['record'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></td>
         </tr>"""
 
-    rows = stat_row("season_to_date", "Season") + stat_row("last_4_weeks", "Last 4 wks")
+    rows = stat_row("current_season", str(year)) + stat_row("last_4_weeks", "Last 4 wks")
     if not rows:
         return ""
 

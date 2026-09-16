@@ -125,7 +125,7 @@ def run():
         json.dump(summary, f, indent=2)
 
     print(f"\nBackfilled {len(log)} graded games ({BACKFILL_SEASONS}) into {existing_path}")
-    std = summary.get("season_to_date", {})
+    std = summary.get("all_time", {})
     for label in ["model", "sharp", "vegas"]:
         s = std.get(label, {})
         if s:

@@ -29,6 +29,10 @@ import pandas as pd
 import numpy as np
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from fetch_data import current_nfl_season
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
@@ -103,17 +107,35 @@ def grade_completed_games(log):
     return log
 
 def summarize(log):
+    """
+    "all_time" keeps the full graded history (including the 2024-2025
+    backfill) for internal/backend reference, but the email only ever shows
+    "current_season" and "last_N_weeks" - both scoped to the live NFL season,
+    since the point of the tracker going forward is "how are we doing THIS
+    season," not diluting that with the backfilled seed data.
+    """
     graded = log[log["actual_margin"].notna()].copy()
     if graded.empty:
         return {"n_graded_games": 0}
 
     graded = graded.sort_values(["season", "week"])
-    distinct_weeks = graded[["season", "week"]].drop_duplicates().sort_values(["season", "week"])
-    recent_weeks = pd.MultiIndex.from_frame(distinct_weeks.tail(LAST_N_WEEKS))
-    recent_mask = pd.MultiIndex.from_frame(graded[["season", "week"]]).isin(recent_weeks)
+    current_season = current_nfl_season()
+    this_season = graded[graded["season"] == current_season]
 
-    summary = {"n_graded_games": int(len(graded)), "last_updated": pd.Timestamp.now("UTC").isoformat()}
-    windows = {"season_to_date": graded, f"last_{LAST_N_WEEKS}_weeks": graded[recent_mask]}
+    distinct_weeks = this_season[["season", "week"]].drop_duplicates().sort_values(["season", "week"])
+    recent_weeks = pd.MultiIndex.from_frame(distinct_weeks.tail(LAST_N_WEEKS))
+    recent_mask = pd.MultiIndex.from_frame(this_season[["season", "week"]]).isin(recent_weeks)
+
+    summary = {
+        "n_graded_games": int(len(graded)),
+        "current_season_year": current_season,
+        "last_updated": pd.Timestamp.now("UTC").isoformat(),
+    }
+    windows = {
+        "all_time": graded,
+        "current_season": this_season,
+        f"last_{LAST_N_WEEKS}_weeks": this_season[recent_mask],
+    }
 
     for window_name, window_df in windows.items():
         if window_df.empty:
@@ -154,13 +176,23 @@ def main():
         json.dump(summary, f, indent=2)
 
     if summary.get("n_graded_games", 0) > 0:
-        std = summary.get("season_to_date", {})
-        print("\nSeason-to-date accuracy (us vs the market):")
+        year = summary.get("current_season_year")
+        current = summary.get("current_season", {})
+        all_time = summary.get("all_time", {})
+        if current:
+            print(f"\n{year} season accuracy (us vs the market):")
+            for label in ["model", "sharp", "vegas"]:
+                s = current.get(label, {})
+                if s:
+                    print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | "
+                          f"spread MAE {s['spread_mae']:.2f} | total MAE {s['total_mae']:.2f} | Brier {s['brier_score']:.4f}")
+        else:
+            print(f"\nNo {year} games graded yet.")
+        print(f"\nAll-time (including backfill), {all_time.get('sharp', {}).get('n_games', 0)} games:")
         for label in ["model", "sharp", "vegas"]:
-            s = std.get(label, {})
+            s = all_time.get(label, {})
             if s:
-                print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | "
-                      f"spread MAE {s['spread_mae']:.2f} | total MAE {s['total_mae']:.2f} | Brier {s['brier_score']:.4f}")
+                print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%})")
 
     print(f"\nSaved tracking log to {LOG_PATH} and summary to {SUMMARY_PATH}")
 
