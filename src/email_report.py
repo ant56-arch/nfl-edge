@@ -3,9 +3,17 @@ email_report.py
 Formats game predictions + player props + Vegas lines into a styled HTML
 email and sends it via Resend's API.
 
-DESIGN: dark "broadcast terminal" theme. Bold condensed headers for
-structure, monospace for every number (scores, odds, stat lines), amber for
-our own picks, cyan for market/Vegas data.
+DESIGN: clean light "analytics report" theme - white cards on a soft neutral
+background, a single burnt-orange brand accent for "our" numbers, teal for
+market/Vegas data, green/red reserved for genuinely good/bad signals (a
+favorable matchup, a blown call) rather than spread across everything.
+Numeric columns are right-aligned and zebra-striped for scannability, the
+way an actual research report reads rather than a wall of stats.
+
+WHY LIGHT, NOT DARK: Gmail's automatic dark-mode recoloring can partially
+override a custom dark theme's own colors even with the [data-ogsc] fix
+below - a known, frustrating limitation that behaves differently on web vs.
+iOS vs. Android. Light is the reliable choice across clients.
 
 Required GitHub Secrets:
   RESEND_API_KEY   - your Resend API key
@@ -22,38 +30,46 @@ from datetime import datetime
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 TRACKING_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "tracking")
 
-# Set to "dark" or "light". Gmail's automatic dark-mode recoloring can
-# override a dark-designed email's own colors even with !important and
-# color-scheme meta tags - it's a known, frustrating limitation. "light" is
-# the reliable choice; "dark" includes the [data-ogsc] attribute-selector
-# fix email developers use to fight Gmail's override, but isn't guaranteed
-# across every Gmail client (web vs iOS vs Android behave differently).
-THEME = "dark"
+THEME = "light"  # "dark" is kept below for reference, but see the docstring - light is the reliable choice.
 
 if THEME == "dark":
-    BG = "#0b0d10"
+    PAGE_BG = "#0b0d10"
     CARD_BG = "#151920"
     CARD_BORDER = "#252b35"
+    ROW_ALT_BG = "#1a1f28"
     TEXT_PRIMARY = "#f5f7fa"
     TEXT_MUTED = "#b9c2cf"
-    ACCENT_AMBER = "#f5a623"
-    ACCENT_CYAN = "#3ec9d6"
-    ACCENT_RED = "#e5484d"
+    TEXT_FAINT = "#6b7280"
+    ACCENT_PRIMARY = "#f5a623"
+    ACCENT_PRIMARY_TINT = "#3a2f18"
+    ACCENT_MARKET = "#3ec9d6"
+    ACCENT_MARKET_TINT = "#173238"
+    ACCENT_DANGER = "#e5484d"
+    ACCENT_DANGER_TINT = "#3a1e1f"
+    ACCENT_POSITIVE = "#3dd68c"
+    ACCENT_POSITIVE_TINT = "#173328"
 else:
-    BG = "#f4f5f7"
+    PAGE_BG = "#eef1f6"
     CARD_BG = "#ffffff"
-    CARD_BORDER = "#e2e5ea"
-    TEXT_PRIMARY = "#14181f"
+    CARD_BORDER = "#e2e6ed"
+    ROW_ALT_BG = "#f7f9fc"
+    TEXT_PRIMARY = "#111827"
     TEXT_MUTED = "#6b7280"
-    ACCENT_AMBER = "#b5650a"
-    ACCENT_CYAN = "#0e7f90"
-    ACCENT_RED = "#c0392b"
+    TEXT_FAINT = "#a3aab5"
+    ACCENT_PRIMARY = "#c2410c"
+    ACCENT_PRIMARY_TINT = "#fdece2"
+    ACCENT_MARKET = "#0e7490"
+    ACCENT_MARKET_TINT = "#e3f2f3"
+    ACCENT_DANGER = "#b91c1c"
+    ACCENT_DANGER_TINT = "#fbe9e9"
+    ACCENT_POSITIVE = "#15803d"
+    ACCENT_POSITIVE_TINT = "#e8f5ec"
 
 FONT_DISPLAY = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 FONT_MONO = "'Courier New', Courier, monospace"
 
-DASH = "\u2014"
-MIDDOT = "\u00b7"
+DASH = "—"
+MIDDOT = "·"
 
 def load_predictions():
     games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
@@ -66,37 +82,47 @@ def next_week_games(games):
     next_week = games.sort_values(["season", "week"]).iloc[0][["season", "week"]]
     return games[(games["season"] == next_week["season"]) & (games["week"] == next_week["week"])]
 
+def pill(text, color, tint):
+    return ('<span style="display:inline-block; color:' + color + '; background:' + tint + '; font-family:' + FONT_DISPLAY
+            + '; font-size:9px; font-weight:800; letter-spacing:0.4px; border-radius:10px; padding:2px 7px; white-space:nowrap;">'
+            + text + '</span>')
+
 def card_open(title=None, subtitle=None):
     header = ""
     if title:
         subtitle_html = ""
         if subtitle:
-            subtitle_html = "<div style=\"font-family:" + FONT_DISPLAY + "; font-size:12px; color:" + TEXT_MUTED + "; margin-top:2px;\">" + subtitle + "</div>"
+            subtitle_html = "<div style=\"font-family:" + FONT_DISPLAY + "; font-size:12px; color:" + TEXT_MUTED + "; margin-top:3px;\">" + subtitle + "</div>"
         header = """
         <tr>
-          <td style="padding:18px 20px 4px 20px;">
-            <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:""" + ACCENT_AMBER + """;">""" + title + """</div>
-            """ + subtitle_html + """
+          <td style="padding:20px 22px 12px 22px; border-bottom:1px solid """ + CARD_BORDER + """;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:4px; background:""" + ACCENT_PRIMARY + """; border-radius:2px; font-size:0; line-height:0;">&nbsp;</td>
+              <td style="padding-left:10px;">
+                <div style="font-family:""" + FONT_DISPLAY + """; font-size:15px; font-weight:800; color:""" + TEXT_PRIMARY + """;">""" + title + """</div>
+                """ + subtitle_html + """
+              </td>
+            </tr></table>
           </td>
         </tr>"""
     return """
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + CARD_BG + """; border:1px solid """ + CARD_BORDER + """; border-radius:10px; margin-bottom:16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + CARD_BG + """; border:1px solid """ + CARD_BORDER + """; border-radius:12px; margin-bottom:18px;">
       """ + header + """
-      <tr><td style="padding:8px 20px 20px 20px;">"""
+      <tr><td style="padding:16px 22px 22px 22px;">"""
 
 def card_close():
     return "</td></tr></table>"
 
 def build_games_table(games, comparison):
     if games.empty:
-        return "<p style='color:" + TEXT_MUTED + "; font-family:" + FONT_DISPLAY + ";'>No upcoming games found.</p>"
+        return "<p style=\"color:" + TEXT_MUTED + "; font-family:" + FONT_DISPLAY + ";\">No upcoming games found.</p>"
 
     merged = games.copy()
     if comparison is not None and not comparison.empty:
         vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line", "vegas_home_win_prob"]]
         merged = merged.merge(vegas_cols, on=["home_team", "away_team"], how="left")
 
-    merged = merged.sort_values("favored_by", ascending=False)
+    merged = merged.sort_values("favored_by", ascending=False).reset_index(drop=True)
 
     rows = ""
     for i, g in merged.iterrows():
@@ -106,36 +132,45 @@ def build_games_table(games, comparison):
         if has_vegas:
             vegas_favored_team = g["vegas_favored_team"]
             vegas_line = vegas_favored_team + " -" + format(abs(g['vegas_home_favored_by']), ".1f")
-            vegas_total = format(g['total_line'], ".1f") if pd.notna(g.get("total_line")) else DASH
+            vegas_total = format(g['total_line'], ".1f") if pd.notna(g.get("total_line")) else None
             disagree = g["favored_team"] != vegas_favored_team
         else:
-            vegas_line = DASH
-            vegas_total = DASH
+            vegas_line = None
+            vegas_total = None
             disagree = False
 
-        flip_dot = ('<span style="color:' + ACCENT_RED + '; font-weight:800;">&#9679;</span> ') if disagree else ""
+        vegas_line_html = ('<span style="color:' + ACCENT_MARKET + ';">Vegas ' + vegas_line + '</span>') if vegas_line else ('<span style="color:' + TEXT_FAINT + ';">Vegas ' + DASH + '</span>')
+        total_line = "O/U " + format(g['projected_total'], ".1f") + " <span style='color:" + TEXT_FAINT + ";'>(Vegas " + (vegas_total if vegas_total else DASH) + ")</span>"
 
+        row_bg = ACCENT_DANGER_TINT if disagree else (ROW_ALT_BG if i % 2 else CARD_BG)
+        flip_note = ('<div style="margin-top:4px;">' + pill("DIFFERENT PICK", ACCENT_DANGER, CARD_BG) + '</div>') if disagree else ""
+        cell_style = "padding:12px 10px; background:" + row_bg + "; border-bottom:1px solid " + CARD_BORDER + ";"
+
+        # Two columns, not five - a rigid 5-column grid overflows and gets
+        # clipped on a phone-width inbox. Details stack vertically inside
+        # each column instead, which degrades gracefully at any width.
         rows += """
         <tr>
-          <td style="padding:10px 8px; font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_PRIMARY + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + g['away_team'] + """ <span style="color:""" + TEXT_MUTED + """;">@</span> """ + g['home_team'] + """</td>
-          <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</td>
-          <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + flip_dot + vegas_line + """</td>
-          <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + TEXT_PRIMARY + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(g['projected_total'], ".1f") + """ <span style="color:""" + TEXT_MUTED + """;">/</span> <span style="color:""" + ACCENT_CYAN + """;">""" + vegas_total + """</span></td>
-          <td style="padding:10px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + TEXT_PRIMARY + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + format(win_pct, ".0%") + """</td>
+          <td style=\"""" + cell_style + """ font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_PRIMARY + """; font-weight:600;\">
+            """ + g['away_team'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">@</span> """ + g['home_team'] + """
+            <div style="font-family:""" + FONT_MONO + """; font-size:11px; color:""" + TEXT_MUTED + """; font-weight:400; margin-top:4px;">Win """ + format(win_pct, ".0%") + """ &middot; """ + total_line + """</div>
+            """ + flip_note + """
+          </td>
+          <td style=\"""" + cell_style + """ text-align:right;\">
+            <div style="font-family:""" + FONT_MONO + """; font-size:14px; color:""" + ACCENT_PRIMARY + """; font-weight:700;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</div>
+            <div style="font-family:""" + FONT_MONO + """; font-size:11px; margin-top:4px;">""" + vegas_line_html + """</div>
+          </td>
         </tr>"""
 
     return """
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
-        <td style="padding:0 8px 8px 8px;">Matchup</td>
-        <td style="padding:0 8px 8px 8px;">Our Line</td>
-        <td style="padding:0 8px 8px 8px;">Vegas</td>
-        <td style="padding:0 8px 8px 8px;">Total (us / vegas)</td>
-        <td style="padding:0 8px 8px 8px;">Win%</td>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
+      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
+        <td width="58%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """;">Matchup</td>
+        <td width="42%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """; text-align:right;">Line</td>
       </tr>
       """ + rows + """
     </table>
-    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:10px;"><span style="color:""" + ACCENT_RED + """;">&#9679;</span> = we favor a different team than Vegas entirely.</div>"""
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:12px;">""" + pill("DIFFERENT PICK", ACCENT_DANGER, CARD_BG) + """ = we favor a different team than Vegas entirely.</div>"""
 
 def build_edge_highlight_cards(comparison, max_cards=3):
     if comparison is None or comparison.empty:
@@ -146,29 +181,31 @@ def build_edge_highlight_cards(comparison, max_cards=3):
     notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
     top = notable.sort_values("sort_key", ascending=False).head(max_cards)
 
-    cells = ""
+    # Stacked full-width cards, not a side-by-side grid - 3 columns
+    # crammed into a phone-width inbox is exactly the overflow problem the
+    # other tables had, just harder to fix with in-cell wrapping since these
+    # are already small, dense cards rather than table rows.
+    cards = ""
     for _, g in top.iterrows():
         flip = g["model_favored_team"] != g["vegas_favored_team"]
-        border_color = ACCENT_RED if flip else ACCENT_AMBER
-        flip_line = ""
-        if flip:
-            flip_line = '<div style="font-family:' + FONT_DISPLAY + '; font-size:10px; font-weight:800; color:' + ACCENT_RED + '; letter-spacing:1px; margin-top:6px;">DIFFERENT TEAM FAVORED</div>'
-        cells += """
-        <td width=\"""" + str(100 // max_cards) + """%\" valign="top" style="padding:0 6px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + BG + """; border:1px solid """ + border_color + """; border-radius:8px;">
-            <tr><td style="padding:12px;">
-              <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """;">""" + g['away_team'] + " @ " + g['home_team'] + """</div>
-              <div style="font-family:""" + FONT_MONO + """; font-size:16px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:4px;">""" + g['model_favored_team'] + " -" + format(g['model_favored_by'], ".1f") + """</div>
-              <div style="font-family:""" + FONT_MONO + """; font-size:12px; color:""" + ACCENT_CYAN + """; margin-top:2px;">Vegas: """ + g['vegas_favored_team'] + " -" + format(abs(g['vegas_home_favored_by']), ".1f") + """</div>
-              """ + flip_line + """
-            </td></tr>
-          </table>
-        </td>"""
+        bar_color = ACCENT_DANGER if flip else ACCENT_PRIMARY
+        flip_pill = pill("DIFFERENT TEAM FAVORED", ACCENT_DANGER, ACCENT_DANGER_TINT) if flip else ""
+        cards += """
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + CARD_BG + """; border:1px solid """ + CARD_BORDER + """; border-radius:10px; margin-bottom:10px;">
+          <tr>
+            <td width="4" style="background:""" + bar_color + """; border-radius:10px 0 0 10px; font-size:0; line-height:0;">&nbsp;</td>
+            <td style="padding:13px 15px;">
+              <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """; font-weight:600;">""" + g['away_team'] + " @ " + g['home_team'] + """</div>
+              """ + (('<div style="margin-top:6px;">' + flip_pill + '</div>') if flip_pill else "") + """
+              <div style="font-family:""" + FONT_MONO + """; font-size:16px; font-weight:700; color:""" + ACCENT_PRIMARY + """; margin-top:6px;">""" + g['model_favored_team'] + " -" + format(g['model_favored_by'], ".1f") + """ <span style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; font-weight:400;">our model</span></div>
+              <div style="font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_MARKET + """; margin-top:2px;">""" + g['vegas_favored_team'] + " -" + format(abs(g['vegas_home_favored_by']), ".1f") + """ <span style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; font-weight:400;">vegas</span></div>
+            </td>
+          </tr>
+        </table>"""
 
     return """
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr>""" + cells + """</tr>
-    </table>"""
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:""" + TEXT_MUTED + """; margin-bottom:10px;">Notable Model vs. Market Gaps</div>
+    """ + cards
 
 def load_accuracy_summary():
     path = os.path.join(TRACKING_DIR, "accuracy_summary.json")
@@ -193,105 +230,119 @@ def build_accuracy_scorecard(summary):
 
     if not sharp_current:
         return """
-        <div style="font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_MUTED + """; line-height:1.5;">
-          Tracking started for the """ + str(year) + """ season - no games graded yet. Check back once the first
-          week's games wrap.
-        </div>"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px dashed """ + CARD_BORDER + """; border-radius:8px;">
+          <tr><td align="center" style="padding:22px;">
+            <div style="font-family:""" + FONT_DISPLAY + """; font-size:13px; color:""" + TEXT_MUTED + """; line-height:1.6;">
+              Tracking started for the """ + str(year) + """ season - no games graded yet.<br>Check back once the first week's games wrap.
+            </div>
+          </td></tr>
+        </table>"""
 
     headline = """
-        <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; letter-spacing:0.5px;">""" + str(year) + """ SEASON STRAIGHT-UP RECORD</div>
-        <div style="font-family:""" + FONT_MONO + """; font-size:26px; font-weight:700; color:""" + ACCENT_AMBER + """; margin-top:2px;">""" + sharp_current['record'] + """ <span style="font-size:14px; color:""" + TEXT_MUTED + """; font-weight:400;">(""" + format(sharp_current['pick_accuracy'], ".0%") + """)</span></div>
+        <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; font-weight:700; color:""" + TEXT_MUTED + """; letter-spacing:0.6px; text-transform:uppercase;">""" + str(year) + """ Season Straight-Up Record</div>
+        <div style="font-family:""" + FONT_MONO + """; font-size:30px; font-weight:700; color:""" + ACCENT_PRIMARY + """; margin-top:4px;">""" + sharp_current['record'] + """ <span style="font-family:""" + FONT_DISPLAY + """; font-size:15px; color:""" + TEXT_MUTED + """; font-weight:400;">(""" + format(sharp_current['pick_accuracy'], ".0%") + """)</span></div>
         """
 
-    def stat_row(window_key, window_label):
+    def stat_row(window_key, window_label, i):
         window = summary.get(window_key)
         if not window:
             return ""
         sharp, vegas = window.get("sharp", {}), window.get("vegas", {})
         if not sharp or not vegas:
             return ""
+        row_bg = ROW_ALT_BG if i % 2 else CARD_BG
+        cell = "padding:11px 10px; background:" + row_bg + "; border-bottom:1px solid " + CARD_BORDER + ";"
         return """
         <tr>
-          <td style="padding:8px 8px; font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + window_label + """ <span style="color:""" + TEXT_MUTED + """;">(""" + str(sharp.get('n_games', 0)) + """ games)</span></td>
-          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_AMBER + """; font-weight:700; border-bottom:1px solid """ + CARD_BORDER + """;">""" + sharp['record'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(sharp['spread_mae'], ".1f") + """</span></td>
-          <td style="padding:8px 8px; font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_CYAN + """; border-bottom:1px solid """ + CARD_BORDER + """;">""" + vegas['record'] + """ <span style="color:""" + TEXT_MUTED + """; font-weight:400;">/ &plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></td>
+          <td style=\"""" + cell + """ font-family:""" + FONT_DISPLAY + """; font-size:12px; color:""" + TEXT_MUTED + """;\">""" + window_label + """ <span style="color:""" + TEXT_FAINT + """;">(""" + str(sharp.get('n_games', 0)) + """ gm)</span></td>
+          <td style=\"""" + cell + """ text-align:right;\">
+            <div style="font-family:""" + FONT_MONO + """; font-size:13px; color:""" + ACCENT_PRIMARY + """; font-weight:700;">Us """ + sharp['record'] + """ <span style="color:""" + TEXT_FAINT + """; font-weight:400;">&plusmn;""" + format(sharp['spread_mae'], ".1f") + """</span></div>
+            <div style="font-family:""" + FONT_MONO + """; font-size:11px; color:""" + ACCENT_MARKET + """; margin-top:3px;">Vegas """ + vegas['record'] + """ <span style="color:""" + TEXT_FAINT + """;">&plusmn;""" + format(vegas['spread_mae'], ".1f") + """</span></div>
+          </td>
         </tr>"""
 
-    rows = stat_row("current_season", str(year)) + stat_row("last_4_weeks", "Last 4 wks")
+    rows = stat_row("current_season", str(year), 0) + stat_row("last_4_weeks", "Last 4 wks", 1)
     if not rows:
         return ""
 
     return headline + """
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
-      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
-        <td style="padding:0 8px 8px 8px;">Window</td>
-        <td style="padding:0 8px 8px 8px;">Us (W-L / spread err)</td>
-        <td style="padding:0 8px 8px 8px;">Vegas (W-L / spread err)</td>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed; margin-top:16px;">
+      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
+        <td width="46%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """;">Window</td>
+        <td width="54%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """; text-align:right;">Record (spread err)</td>
       </tr>
       """ + rows + """
     </table>
-    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:10px;">Record = correct straight-up picks, graded against actual final scores. Spread err = avg points off the actual margin (lower is sharper).</div>"""
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; margin-top:12px; line-height:1.5;">Record = correct straight-up picks, graded against actual final scores. Spread err = avg points off the actual margin (lower is sharper).</div>"""
 
 def injury_tag(status):
     if not status or pd.isna(status) or status == "":
         return ""
-    color = ACCENT_AMBER if status == "Questionable" else ACCENT_RED
-    return ' <span style="color:' + color + '; font-size:10px; font-weight:800; letter-spacing:0.5px;">' + status.upper() + '</span>'
+    color, tint = (ACCENT_PRIMARY, ACCENT_PRIMARY_TINT) if status == "Questionable" else (ACCENT_DANGER, ACCENT_DANGER_TINT)
+    return ' ' + pill(status.upper(), color, tint)
 
 def matchup_badge(mult):
-    """Small colored chip flagging a real matchup edge - soft (favorable) or
+    """Small colored pill flagging a real matchup edge - soft (favorable) or
     tough - so the reader doesn't have to mentally compare multipliers.
     Silent (no badge) for anything close to a neutral matchup."""
     if mult is None or pd.isna(mult):
         return ""
     if mult >= 1.08:
-        return ' <span style="color:' + ACCENT_CYAN + '; font-size:9px; font-weight:800; letter-spacing:0.5px; border:1px solid ' + ACCENT_CYAN + '; border-radius:3px; padding:1px 4px;">SOFT MATCHUP</span>'
+        return ' ' + pill("SOFT MATCHUP", ACCENT_POSITIVE, ACCENT_POSITIVE_TINT)
     if mult <= 0.92:
-        return ' <span style="color:' + ACCENT_RED + '; font-size:9px; font-weight:800; letter-spacing:0.5px; border:1px solid ' + ACCENT_RED + '; border-radius:3px; padding:1px 4px;">TOUGH MATCHUP</span>'
+        return ' ' + pill("TOUGH MATCHUP", ACCENT_DANGER, ACCENT_DANGER_TINT)
     return ""
 
 def sample_size_tag(games_played):
     if pd.isna(games_played) or games_played >= 6:
         return ""
-    return ' <span style="color:' + TEXT_MUTED + '; font-size:9px; font-style:italic;">(' + str(int(games_played)) + ' gm sample)</span>'
+    return ' <span style="color:' + TEXT_FAINT + '; font-size:10px; font-style:italic;">(' + str(int(games_played)) + ' gm sample)</span>'
 
 def build_props_table(props, stat_cols, title, n=5):
+    """Two columns, not one-per-stat: a rigid 4-5 column stat grid overflows
+    on a phone-width inbox exactly like the games table did. The headline
+    stat (yards) stands alone as a big number; everything else (attempts,
+    completions, TDs) stacks underneath it as a single muted line."""
     if props.empty or stat_cols["sort"] not in props.columns:
         return ""
-    top = props.dropna(subset=[stat_cols["sort"]]).sort_values(stat_cols["sort"], ascending=False).head(n)
+    top = props.dropna(subset=[stat_cols["sort"]]).sort_values(stat_cols["sort"], ascending=False).head(n).reset_index(drop=True)
     if top.empty:
         return ""
 
     headline_col = stat_cols["sort"]
+    secondary_cols = [c for c in stat_cols["display"] if c != headline_col]
+    secondary_labels = [h for c, h in zip(stat_cols["display"], stat_cols["headers"]) if c != headline_col]
+    headline_label = stat_cols["headers"][stat_cols["display"].index(headline_col)]
+
     rows = ""
     for i, p in top.iterrows():
-        row_bg = CARD_BG if i % 2 == 0 else BG
-        cells = ""
-        for c in stat_cols["display"]:
-            is_headline = c == headline_col
-            color = ACCENT_AMBER if is_headline else TEXT_PRIMARY
-            weight = "700" if is_headline else "400"
-            cells += ("<td style='padding:9px 8px; background:" + row_bg + "; font-family:" + FONT_MONO
-                      + "; font-size:13px; color:" + color + "; font-weight:" + weight + "; border-bottom:1px solid "
-                      + CARD_BORDER + ";'>" + str(p[c]) + "</td>")
+        row_bg = ROW_ALT_BG if i % 2 else CARD_BG
+        cell_style = "padding:11px 10px; background:" + row_bg + "; border-bottom:1px solid " + CARD_BORDER + ";"
+
+        secondary_line = " &middot; ".join(
+            format(p[c], ".2f" if abs(p[c]) < 3 else ".1f") + " " + label.lower()
+            for c, label in zip(secondary_cols, secondary_labels)
+        )
 
         tag = injury_tag(p.get("injury_status")) + sample_size_tag(p.get("games_played"))
         badge = matchup_badge(p.get(stat_cols["matchup_col"])) if stat_cols.get("matchup_col") else ""
         rows += "<tr>"
-        rows += ("<td style='padding:9px 8px; background:" + row_bg + "; font-family:" + FONT_DISPLAY + "; font-size:13px; color:"
-                 + TEXT_PRIMARY + "; border-bottom:1px solid " + CARD_BORDER + ";'><b>" + str(p['player_name']) + "</b>" + tag
-                 + "<br><span style='color:" + TEXT_MUTED + "; font-size:11px;'>" + str(p['team']) + " vs " + str(p['opponent'])
-                 + "</span>" + badge + "</td>")
-        rows += cells
+        rows += ("<td style=\"" + cell_style + " font-family:" + FONT_DISPLAY + "; font-size:13px; color:"
+                 + TEXT_PRIMARY + ";\"><b>" + str(p['player_name']) + "</b>" + tag
+                 + "<div style='color:" + TEXT_MUTED + "; font-size:11px; margin-top:2px;'>" + str(p['team']) + " vs " + str(p['opponent'])
+                 + "</div>" + ("<div style='margin-top:4px;'>" + badge.strip() + "</div>" if badge else "") + "</td>")
+        rows += ("<td style='" + cell_style + " text-align:right;'>"
+                 + "<div style=\"font-family:" + FONT_MONO + "; font-size:15px; color:" + ACCENT_PRIMARY + "; font-weight:700;\">"
+                 + str(p[headline_col]) + " <span style=\"font-family:" + FONT_DISPLAY + "; font-size:11px; color:" + TEXT_MUTED + "; font-weight:400;\">" + headline_label.lower() + "</span></div>"
+                 + "<div style=\"font-family:" + FONT_MONO + "; font-size:11px; color:" + TEXT_MUTED + "; margin-top:3px;\">" + secondary_line + "</div></td>")
         rows += "</tr>"
 
-    headers = "".join("<td style='padding:0 8px 6px 8px;'>" + h + "</td>" for h in stat_cols["headers"])
     return """
-    <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; font-weight:800; color:""" + TEXT_PRIMARY + """; letter-spacing:0.5px; margin:16px 0 8px 0;">""" + title + """</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
-        <td style="padding:0 8px 6px 8px;">Player</td>
-        """ + headers + """
+    <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase; color:""" + TEXT_PRIMARY + """; margin:20px 0 10px 0;">""" + title + """</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
+      <tr style="font-family:""" + FONT_DISPLAY + """; font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:""" + TEXT_MUTED + """;">
+        <td width="48%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """;">Player</td>
+        <td width="52%" style="padding:0 10px 8px 10px; border-bottom:2px solid """ + CARD_BORDER + """; text-align:right;">Projection</td>
       </tr>
       """ + rows + """
     </table>"""
@@ -308,24 +359,24 @@ def build_email_html(games, props, comparison=None, accuracy_summary=None):
         "display": ["proj_pass_attempts", "proj_completions", "proj_pass_yards", "proj_pass_tds"],
         "headers": ["Att", "Comp", "Yds", "TDs"],
         "matchup_col": "matchup_mult_pass",
-    }, "PASSING")
+    }, "Passing")
 
     rushing_html = build_props_table(props, {
         "sort": "proj_rush_yards",
         "display": ["proj_carries", "proj_rush_yards", "proj_rush_tds"],
         "headers": ["Car", "Yds", "TDs"],
         "matchup_col": "matchup_mult_rush",
-    }, "RUSHING")
+    }, "Rushing")
 
     receiving_html = build_props_table(props, {
         "sort": "proj_rec_yards",
         "display": ["proj_targets", "proj_receptions", "proj_rec_yards", "proj_rec_tds"],
         "headers": ["Tgt", "Rec", "Yds", "TDs"],
         "matchup_col": "matchup_mult_rec",
-    }, "RECEIVING")
+    }, "Receiving")
 
     edge_cards = build_edge_highlight_cards(week_comparison)
-    edge_section = ('<tr><td style="padding-bottom:16px;">' + edge_cards + '</td></tr>') if edge_cards else ""
+    edge_section = ('<tr><td style="padding-bottom:18px;">' + edge_cards + '</td></tr>') if edge_cards else ""
 
     scorecard_html = build_accuracy_scorecard(accuracy_summary)
     scorecard_section = ('<tr><td>' + card_open("Track Record", "Graded against real final scores, not vibes") + scorecard_html + card_close() + '</td></tr>') if scorecard_html else ""
@@ -338,12 +389,13 @@ def build_email_html(games, props, comparison=None, accuracy_summary=None):
     if THEME == "dark":
         dark_mode_fix = """
       <style>
-        [data-ogsc] { background-color: """ + BG + """ !important; }
-        [data-ogsb] { background-color: """ + BG + """ !important; }
+        [data-ogsc] { background-color: """ + PAGE_BG + """ !important; }
+        [data-ogsb] { background-color: """ + PAGE_BG + """ !important; }
         [data-ogsc] td, [data-ogsc] div, [data-ogsc] span { color: """ + TEXT_PRIMARY + """ !important; }
       </style>"""
 
     html = """
+    <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
@@ -351,14 +403,15 @@ def build_email_html(games, props, comparison=None, accuracy_summary=None):
       <meta name="color-scheme" content=\"""" + THEME + """\">
       <meta name="supported-color-schemes" content=\"""" + THEME + """\">""" + dark_mode_fix + """
     </head>
-    <body class="body" style="margin:0; padding:0; background:""" + BG + """;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + BG + """;" bgcolor=\"""" + BG + """\">
-        <tr><td align="center" style="padding:24px 12px;">
+    <body class="body" style="margin:0; padding:0; background:""" + PAGE_BG + """;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:""" + PAGE_BG + """;" bgcolor=\"""" + PAGE_BG + """\">
+        <tr><td align="center" style="padding:32px 12px;">
           <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
 
-            <tr><td style="padding-bottom:20px;">
-              <div style="font-family:""" + FONT_DISPLAY + """; font-size:28px; font-weight:800; letter-spacing:-0.5px; color:""" + TEXT_PRIMARY + """;">NFL <span style="color:""" + ACCENT_AMBER + """;">EDGE</span></div>
-              <div style="font-family:""" + FONT_MONO + """; font-size:12px; color:""" + TEXT_MUTED + """; margin-top:2px;">""" + masthead_sub + """</div>
+            <tr><td style="padding-bottom:24px;">
+              <div style="font-family:""" + FONT_DISPLAY + """; font-size:26px; font-weight:800; letter-spacing:-0.5px; color:""" + TEXT_PRIMARY + """;">NFL <span style="color:""" + ACCENT_PRIMARY + """;">EDGE</span></div>
+              <div style="height:3px; width:48px; background:""" + ACCENT_PRIMARY + """; border-radius:2px; margin:8px 0 10px 0; font-size:0; line-height:0;">&nbsp;</div>
+              <div style="font-family:""" + FONT_DISPLAY + """; font-size:12px; font-weight:600; color:""" + TEXT_MUTED + """; letter-spacing:0.3px;">""" + masthead_sub + """</div>
             </td></tr>
 
             """ + edge_section + """
@@ -375,8 +428,8 @@ def build_email_html(games, props, comparison=None, accuracy_summary=None):
               """ + receiving_html + """
             """ + card_close() + """</td></tr>
 
-            <tr><td style="padding-top:8px;">
-              <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; line-height:1.5;">
+            <tr><td style="padding-top:6px; border-top:1px solid """ + CARD_BORDER + """;">
+              <div style="font-family:""" + FONT_DISPLAY + """; font-size:11px; color:""" + TEXT_MUTED + """; line-height:1.6; padding-top:14px;">
                 Our line blends a coefficients-fit EPA model with the live market line (weights validated on
                 held-out seasons, see src/fit_model.py). Vegas lines via DraftKings (the-odds-api.com) where
                 available. Not betting advice.
