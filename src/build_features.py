@@ -3,32 +3,44 @@ build_features.py
 Turns raw nflverse play-by-play data into the advanced stats our models use.
 
 Input:  data/raw/pbp_combined.parquet, data/raw/rosters.parquet, data/raw/schedules.csv
-Output: data/processed/team_stats.csv, data/processed/player_stats.csv
+Output: data/processed/team_stats.csv, data/processed/player_current_form.csv
 
-Team stats are computed two ways for every team-season:
+Team AND player stats are both computed the same two ways:
   - Season-long averages (the full sample)
   - Recency-weighted "current form" (recent games count more, via exponential
-    decay). This matters a lot in-season: a team that's turned it around in
-    the last month should look different from their week-1 numbers.
+    decay - the half-life is fit against real outcomes by fit_model.py for
+    teams and fit_props_model.py for players, not hand-picked). This matters
+    a lot in-season: a team or player who's turned it around in the last
+    month should look different from their week-1 numbers.
 
-Player stats are usage + efficiency metrics for skill positions, since props
-predictions depend on "how often does this guy touch the ball" as much as
-"how good is he when he does."
+Player current-form metrics are usage + efficiency for skill positions,
+since props predictions depend on "how often does this guy touch the ball"
+as much as "how good is he when he does."
 """
 
 import pandas as pd
 import numpy as np
+import json
 import os
 
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
+PLAYER_HALF_LIFE_PATH = os.path.join(os.path.dirname(__file__), "models", "fitted_props_coefficients.json")
+DEFAULT_PLAYER_HALF_LIFE = 6  # used only until fit_props_model.py has produced a fitted value
+
 RECENCY_HALF_LIFE_GAMES = 4  # a game 4 weeks ago counts half as much as this week
 
 def recency_weight(games_ago, half_life=RECENCY_HALF_LIFE_GAMES):
     """Exponential decay weight: more recent games matter more."""
     return 0.5 ** (games_ago / half_life)
+
+def load_player_half_life():
+    if not os.path.exists(PLAYER_HALF_LIFE_PATH):
+        return DEFAULT_PLAYER_HALF_LIFE
+    with open(PLAYER_HALF_LIFE_PATH) as f:
+        return json.load(f).get("half_life_games", DEFAULT_PLAYER_HALF_LIFE)
 
 def load_pbp():
     path = os.path.join(RAW_DIR, "pbp_combined.parquet")
@@ -121,17 +133,25 @@ def build_team_defense_game_stats(pbp):
 
     return pd.DataFrame(rows)
 
-def apply_recency_weighting(game_stats, group_cols, metric_cols):
+def apply_recency_weighting(game_stats, group_cols, metric_cols, half_life=RECENCY_HALF_LIFE_GAMES,
+                             key_col="team", volume_cols=None):
     """
-    For each team, weight each game's stats by how recent it is (within that
-    team's own game sequence), and produce one weighted-average row per
-    team-season representing "current form."
+    For each entity (team or player), weight each game's stats by how recent
+    it is (within that entity's own game sequence), and produce one
+    weighted-average row representing "current form" as of right now (i.e.
+    using every game on record - this is what a predictor uses for an
+    upcoming game, as opposed to historical_features.compute_walkforward_features,
+    which evaluates this same math at every PAST cutoff for backtesting).
+
+    volume_cols (optional): raw counting columns to also sum (unweighted)
+    across every game - used for minimum-sample-size gating downstream,
+    where a rate stat's OWN precision matters more than its recency.
     """
     results = []
-    for team, g in game_stats.groupby(group_cols):
+    for key, g in game_stats.groupby(group_cols):
         g = g.sort_values(["season", "week"]).reset_index(drop=True)
         games_ago = (len(g) - 1) - g.index  # 0 = most recent game
-        weights = games_ago.map(recency_weight)
+        weights = games_ago.map(lambda x: recency_weight(x, half_life))
 
         weighted = {}
         for col in metric_cols:
@@ -143,94 +163,92 @@ def apply_recency_weighting(game_stats, group_cols, metric_cols):
 
         season_avg = {f"{col}_season_avg": g[col].mean() for col in metric_cols}
 
-        row = {"team": team if isinstance(team, str) else team[0], "games_played": len(g)}
+        row = {key_col: key if isinstance(key, str) else key[0], "games_played": len(g)}
         row.update(weighted)
         row.update(season_avg)
+        if volume_cols:
+            for col in volume_cols:
+                row[f"{col}_career_total"] = g[col].fillna(0).sum()
         results.append(row)
 
     return pd.DataFrame(results)
 
-def build_player_stats(pbp):
-    """Usage + efficiency stats for skill-position players (for prop predictions)."""
+def build_player_game_stats(pbp):
+    """
+    Usage + efficiency stats for skill-position players, ONE ROW PER GAME
+    (season, week, team, player) - not aggregated to a season total. This is
+    what lets props be recency-weighted the same continuous way team stats
+    are (apply_recency_weighting / historical_features.compute_walkforward_features),
+    instead of the coarser "blend last 2 season totals" approach the props
+    model used before fit_props_model.py's backtest replaced it.
+    """
     # Receiving stats
     targets = pbp[pbp["pass"] == 1].copy()
-    team_pass_attempts = targets.groupby(["season", "posteam"])["play_id"].count().rename("team_targets")
+    team_pass_attempts = targets.groupby(["season", "week", "posteam"])["play_id"].count().rename("team_targets")
 
-    receiving = targets.groupby(["season", "posteam", "receiver_player_id", "receiver_player_name"]).agg(
+    receiving = targets.groupby(["season", "week", "posteam", "receiver_player_id", "receiver_player_name"]).agg(
         targets=("play_id", "count"),
         receptions=("complete_pass", "sum"),
         rec_yards=("yards_gained", "sum"),
-        air_yards=("air_yards", "sum"),
         rec_tds=("touchdown", "sum"),
     ).reset_index()
-    receiving = receiving.merge(team_pass_attempts, left_on=["season", "posteam"], right_index=True)
+    receiving = receiving.merge(team_pass_attempts, left_on=["season", "week", "posteam"], right_index=True)
     receiving["target_share"] = receiving["targets"] / receiving["team_targets"]
     receiving = receiving.rename(columns={"receiver_player_id": "player_id", "receiver_player_name": "player_name", "posteam": "team"})
     receiving = receiving[receiving["player_id"].notna()]
-    rec_games = targets.groupby(["season", "posteam", "receiver_player_id"])["week"].nunique().reset_index()
-    rec_games.columns = ["season", "team", "player_id", "games_played_rec"]
-    receiving = receiving.merge(rec_games, on=["season", "team", "player_id"], how="left")
 
     # Rushing stats
     rushes = pbp[pbp["rush"] == 1].copy()
-    team_rush_attempts = rushes.groupby(["season", "posteam"])["play_id"].count().rename("team_carries")
+    team_rush_attempts = rushes.groupby(["season", "week", "posteam"])["play_id"].count().rename("team_carries")
 
-    rushing = rushes.groupby(["season", "posteam", "rusher_player_id", "rusher_player_name"]).agg(
+    rushing = rushes.groupby(["season", "week", "posteam", "rusher_player_id", "rusher_player_name"]).agg(
         carries=("play_id", "count"),
         rush_yards=("yards_gained", "sum"),
         rush_tds=("touchdown", "sum"),
     ).reset_index()
-    rushing = rushing.merge(team_rush_attempts, left_on=["season", "posteam"], right_index=True)
+    rushing = rushing.merge(team_rush_attempts, left_on=["season", "week", "posteam"], right_index=True)
     rushing["carry_share"] = rushing["carries"] / rushing["team_carries"]
     rushing = rushing.rename(columns={"rusher_player_id": "player_id", "rusher_player_name": "player_name", "posteam": "team"})
     rushing = rushing[rushing["player_id"].notna()]
-    rush_games = rushes.groupby(["season", "posteam", "rusher_player_id"])["week"].nunique().reset_index()
-    rush_games.columns = ["season", "team", "player_id", "games_played_rush"]
-    rushing = rushing.merge(rush_games, on=["season", "team", "player_id"], how="left")
 
-    # Passing stats (QBs) - note interceptions aren't in our filtered pbp (pass/run plays only,
-    # but interceptions happen on pass plays so they're retained)
+    # Passing stats (QBs)
     passes = pbp[pbp["pass"] == 1].copy()
-    passing = passes.groupby(["season", "posteam", "passer_player_id", "passer_player_name"]).agg(
+    passing = passes.groupby(["season", "week", "posteam", "passer_player_id", "passer_player_name"]).agg(
         pass_attempts=("play_id", "count"),
         completions=("complete_pass", "sum"),
         pass_yards=("yards_gained", "sum"),
         pass_tds=("touchdown", "sum"),
-        interceptions=("interception", "sum") if "interception" in passes.columns else ("play_id", "size"),
     ).reset_index()
     passing = passing.rename(columns={"passer_player_id": "player_id", "passer_player_name": "player_name", "posteam": "team"})
     passing = passing[passing["player_id"].notna()]
-    pass_games = passes.groupby(["season", "posteam", "passer_player_id"])["week"].nunique().reset_index()
-    pass_games.columns = ["season", "team", "player_id", "games_played_pass"]
-    passing = passing.merge(pass_games, on=["season", "team", "player_id"], how="left")
 
-    player_stats = pd.merge(
+    player_game = pd.merge(
         receiving, rushing,
-        on=["season", "team", "player_id", "player_name"],
+        on=["season", "week", "team", "player_id", "player_name"],
         how="outer", suffixes=("_rec", "_rush")
     )
-    player_stats = pd.merge(
-        player_stats, passing,
-        on=["season", "team", "player_id", "player_name"],
+    player_game = pd.merge(
+        player_game, passing,
+        on=["season", "week", "team", "player_id", "player_name"],
         how="outer"
     )
 
-    # Per-game rate columns, used directly by the props model - avoids
-    # recomputing this logic in every place that needs a "per game" number
-    player_stats["games_played"] = player_stats[["games_played_rec", "games_played_rush", "games_played_pass"]].max(axis=1)
-    player_stats["targets_per_game"] = player_stats["targets"] / player_stats["games_played"]
-    player_stats["carries_per_game"] = player_stats["carries"] / player_stats["games_played"]
-    player_stats["pass_attempts_per_game"] = player_stats["pass_attempts"] / player_stats["games_played"]
-    player_stats["yards_per_target"] = player_stats["rec_yards"] / player_stats["targets"]
-    player_stats["yards_per_carry"] = player_stats["rush_yards"] / player_stats["carries"]
-    player_stats["yards_per_pass_attempt"] = player_stats["pass_yards"] / player_stats["pass_attempts"]
-    player_stats["catch_rate"] = player_stats["receptions"] / player_stats["targets"]
-    player_stats["completion_rate"] = player_stats["completions"] / player_stats["pass_attempts"]
-    player_stats["rec_td_rate"] = player_stats["rec_tds"] / player_stats["targets"]
-    player_stats["rush_td_rate"] = player_stats["rush_tds"] / player_stats["carries"]
-    player_stats["pass_td_rate"] = player_stats["pass_tds"] / player_stats["pass_attempts"]
+    # Per-game rate columns - one game's worth, used as the raw metric that
+    # apply_recency_weighting / compute_walkforward_features then blends
+    # across a player's game history.
+    player_game["targets_per_game"] = player_game["targets"]
+    player_game["carries_per_game"] = player_game["carries"]
+    player_game["pass_attempts_per_game"] = player_game["pass_attempts"]
+    player_game["yards_per_target"] = player_game["rec_yards"] / player_game["targets"]
+    player_game["yards_per_carry"] = player_game["rush_yards"] / player_game["carries"]
+    player_game["yards_per_pass_attempt"] = player_game["pass_yards"] / player_game["pass_attempts"]
+    player_game["catch_rate"] = player_game["receptions"] / player_game["targets"]
+    player_game["completion_rate"] = player_game["completions"] / player_game["pass_attempts"]
+    player_game["rec_td_rate"] = player_game["rec_tds"] / player_game["targets"]
+    player_game["rush_td_rate"] = player_game["rush_tds"] / player_game["carries"]
+    player_game["pass_td_rate"] = player_game["pass_tds"] / player_game["pass_attempts"]
 
-    return player_stats
+    return player_game
 
 def main():
     print("Loading play-by-play data...")
@@ -257,10 +275,26 @@ def main():
     team_stats.to_csv(os.path.join(PROCESSED_DIR, "team_stats.csv"), index=False)
     print(f"  Saved team_stats.csv ({len(team_stats)} teams)")
 
-    print("\nBuilding player usage/efficiency stats...")
-    player_stats = build_player_stats(pbp)
-    player_stats.to_csv(os.path.join(PROCESSED_DIR, "player_stats.csv"), index=False)
-    print(f"  Saved player_stats.csv ({len(player_stats)} players)")
+    print("\nBuilding player current form (recency-weighted usage/efficiency)...")
+    player_half_life = load_player_half_life()
+    print(f"  Using player half-life = {player_half_life} games "
+          f"({'fitted' if os.path.exists(PLAYER_HALF_LIFE_PATH) else 'default - run src/fit_props_model.py'})")
+    player_game_stats = build_player_game_stats(pbp)
+    player_metrics = ["targets_per_game", "carries_per_game", "pass_attempts_per_game",
+                       "yards_per_target", "yards_per_carry", "yards_per_pass_attempt",
+                       "catch_rate", "completion_rate", "rec_td_rate", "rush_td_rate", "pass_td_rate"]
+    player_current_form = apply_recency_weighting(
+        player_game_stats, "player_id", player_metrics, half_life=player_half_life,
+        key_col="player_id", volume_cols=["targets", "carries", "pass_attempts"],
+    )
+    # player_name/team drift as players change teams - always take the most
+    # recent game's values for display/roster-mapping purposes.
+    latest = player_game_stats.sort_values(["season", "week"]).groupby("player_id").last().reset_index()
+    player_current_form = player_current_form.merge(
+        latest[["player_id", "player_name", "team"]], on="player_id", how="left"
+    )
+    player_current_form.to_csv(os.path.join(PROCESSED_DIR, "player_current_form.csv"), index=False)
+    print(f"  Saved player_current_form.csv ({len(player_current_form)} players)")
 
     print("\nDone. Processed stats saved to data/processed/")
 

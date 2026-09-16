@@ -31,10 +31,11 @@ import numpy as np
 
 from build_features import RECENCY_HALF_LIFE_GAMES
 
-def compute_walkforward_features(game_stats, metric_cols, half_life=RECENCY_HALF_LIFE_GAMES):
+def compute_walkforward_features(game_stats, metric_cols, half_life=RECENCY_HALF_LIFE_GAMES, group_col="team"):
     """
-    game_stats: one row per (season, week, team) with raw per-game metric_cols
-    (as produced by build_team_game_stats / build_team_defense_game_stats).
+    game_stats: one row per (season, week, <group_col>) with raw per-game
+    metric_cols (as produced by build_team_game_stats / build_team_defense_game_stats,
+    or build_player_game_stats for group_col="player_id").
 
     Returns game_stats with two new columns per metric:
       f"{col}_asof"             - recency-weighted "current form" using only
@@ -42,12 +43,12 @@ def compute_walkforward_features(game_stats, metric_cols, half_life=RECENCY_HALF
       f"{col}_asof_season_avg"  - unweighted season-to-date average, reset at
                                    each season boundary, using only games
                                    strictly before this one
-    Both are NaN for a team's very first game in the dataset (no prior data).
+    Both are NaN for an entity's very first game in the dataset (no prior data).
     """
     r = 0.5 ** (1 / half_life)
     out_frames = []
 
-    for team, g in game_stats.groupby("team", sort=False):
+    for key, g in game_stats.groupby(group_col, sort=False):
         g = g.sort_values(["season", "week"]).reset_index(drop=True)
         n = len(g)
 

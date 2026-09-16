@@ -238,6 +238,23 @@ def injury_tag(status):
     color = ACCENT_AMBER if status == "Questionable" else ACCENT_RED
     return ' <span style="color:' + color + '; font-size:10px; font-weight:800; letter-spacing:0.5px;">' + status.upper() + '</span>'
 
+def matchup_badge(mult):
+    """Small colored chip flagging a real matchup edge - soft (favorable) or
+    tough - so the reader doesn't have to mentally compare multipliers.
+    Silent (no badge) for anything close to a neutral matchup."""
+    if mult is None or pd.isna(mult):
+        return ""
+    if mult >= 1.08:
+        return ' <span style="color:' + ACCENT_CYAN + '; font-size:9px; font-weight:800; letter-spacing:0.5px; border:1px solid ' + ACCENT_CYAN + '; border-radius:3px; padding:1px 4px;">SOFT MATCHUP</span>'
+    if mult <= 0.92:
+        return ' <span style="color:' + ACCENT_RED + '; font-size:9px; font-weight:800; letter-spacing:0.5px; border:1px solid ' + ACCENT_RED + '; border-radius:3px; padding:1px 4px;">TOUGH MATCHUP</span>'
+    return ""
+
+def sample_size_tag(games_played):
+    if pd.isna(games_played) or games_played >= 6:
+        return ""
+    return ' <span style="color:' + TEXT_MUTED + '; font-size:9px; font-style:italic;">(' + str(int(games_played)) + ' gm sample)</span>'
+
 def build_props_table(props, stat_cols, title, n=5):
     if props.empty or stat_cols["sort"] not in props.columns:
         return ""
@@ -245,15 +262,26 @@ def build_props_table(props, stat_cols, title, n=5):
     if top.empty:
         return ""
 
+    headline_col = stat_cols["sort"]
     rows = ""
     for i, p in top.iterrows():
-        cells = "".join(
-            "<td style='padding:9px 8px; font-family:" + FONT_MONO + "; font-size:13px; color:" + TEXT_PRIMARY + "; border-bottom:1px solid " + CARD_BORDER + ";'>" + str(p[c]) + "</td>"
-            for c in stat_cols["display"]
-        )
-        tag = injury_tag(p.get("injury_status"))
+        row_bg = CARD_BG if i % 2 == 0 else BG
+        cells = ""
+        for c in stat_cols["display"]:
+            is_headline = c == headline_col
+            color = ACCENT_AMBER if is_headline else TEXT_PRIMARY
+            weight = "700" if is_headline else "400"
+            cells += ("<td style='padding:9px 8px; background:" + row_bg + "; font-family:" + FONT_MONO
+                      + "; font-size:13px; color:" + color + "; font-weight:" + weight + "; border-bottom:1px solid "
+                      + CARD_BORDER + ";'>" + str(p[c]) + "</td>")
+
+        tag = injury_tag(p.get("injury_status")) + sample_size_tag(p.get("games_played"))
+        badge = matchup_badge(p.get(stat_cols["matchup_col"])) if stat_cols.get("matchup_col") else ""
         rows += "<tr>"
-        rows += "<td style='padding:9px 8px; font-family:" + FONT_DISPLAY + "; font-size:13px; color:" + TEXT_PRIMARY + "; border-bottom:1px solid " + CARD_BORDER + ";'><b>" + str(p['player_name']) + "</b>" + tag + "<br><span style='color:" + TEXT_MUTED + "; font-size:11px;'>" + str(p['team']) + " vs " + str(p['opponent']) + "</span></td>"
+        rows += ("<td style='padding:9px 8px; background:" + row_bg + "; font-family:" + FONT_DISPLAY + "; font-size:13px; color:"
+                 + TEXT_PRIMARY + "; border-bottom:1px solid " + CARD_BORDER + ";'><b>" + str(p['player_name']) + "</b>" + tag
+                 + "<br><span style='color:" + TEXT_MUTED + "; font-size:11px;'>" + str(p['team']) + " vs " + str(p['opponent'])
+                 + "</span>" + badge + "</td>")
         rows += cells
         rows += "</tr>"
 
@@ -279,18 +307,21 @@ def build_email_html(games, props, comparison=None, accuracy_summary=None):
         "sort": "proj_pass_yards",
         "display": ["proj_pass_attempts", "proj_completions", "proj_pass_yards", "proj_pass_tds"],
         "headers": ["Att", "Comp", "Yds", "TDs"],
+        "matchup_col": "matchup_mult_pass",
     }, "PASSING")
 
     rushing_html = build_props_table(props, {
         "sort": "proj_rush_yards",
         "display": ["proj_carries", "proj_rush_yards", "proj_rush_tds"],
         "headers": ["Car", "Yds", "TDs"],
+        "matchup_col": "matchup_mult_rush",
     }, "RUSHING")
 
     receiving_html = build_props_table(props, {
         "sort": "proj_rec_yards",
         "display": ["proj_targets", "proj_receptions", "proj_rec_yards", "proj_rec_tds"],
         "headers": ["Tgt", "Rec", "Yds", "TDs"],
+        "matchup_col": "matchup_mult_rec",
     }, "RECEIVING")
 
     edge_cards = build_edge_highlight_cards(week_comparison)
