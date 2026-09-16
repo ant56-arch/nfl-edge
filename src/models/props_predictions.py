@@ -67,7 +67,15 @@ def load_props_coefficients():
     with open(COEFFICIENTS_PATH) as f:
         fitted = json.load(f)
     matchup = {k: v for k, v in fitted["matchup_scaling"].items()}
-    injury = fitted.get("injury_multipliers") or DEFAULT_INJURY_MULTIPLIERS
+
+    # Merge (not replace): fit_props_model.py omits any status without enough
+    # samples to trust (e.g. "Doubtful" - rare among players who actually
+    # play), so that status must fall back to its hand-picked default rather
+    # than silently becoming a 1.0 (no discount at all).
+    injury = dict(DEFAULT_INJURY_MULTIPLIERS)
+    for status, info in (fitted.get("injury_multipliers") or {}).items():
+        injury[status] = info["multiplier"]
+
     return matchup, injury, fitted.get("holdout_validation")
 
 def load_data():

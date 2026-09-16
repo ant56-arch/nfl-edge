@@ -47,7 +47,10 @@ from historical_features import compute_walkforward_features
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
 HALF_LIFE_GRID = [3, 4, 6, 8, 10, 13, 16, 20, 26, 34]
-VALIDATION_SEASONS = 1  # most recent completed season held out
+VALIDATION_SEASONS = 2  # most recent seasons held out (matches fit_model.py - the
+# last "season" in range() is always the current, in-progress one, so this
+# needs to be 2 to actually capture one FULL completed season (e.g. 2025) in
+# the holdout rather than just a handful of played-so-far 2026 games.
 
 STAT_TYPES = {
     "receiving": {"usage": "targets_per_game", "efficiency": "yards_per_target",
@@ -142,12 +145,20 @@ def evaluate_holdout(df, coefs, stat_type, min_usage):
         "mae_fitted": float(np.mean(np.abs(fitted_proj - d[actual_col]))),
     }
 
+MIN_INJURY_SAMPLES = 30  # below this, a fitted multiplier is noise, not signal - fall back to the hand-picked default
+
 def fit_injury_multipliers(pbp_seasons, player_game_asof):
     """
     For every player-week tagged Questionable/Doubtful on that week's own
     injury report, compare actual volume (targets or carries, whichever
     applies) to their walk-forward baseline USAGE going into that game - the
     ratio is a data-driven discount, replacing the hand-picked 0.80/0.35.
+
+    "Doubtful" is a genuinely rare tag among players who actually suit up
+    (most truly doubtful players simply don't play, so there's little data on
+    what they do WHEN they play) - if a status doesn't clear MIN_INJURY_SAMPLES,
+    it's dropped here rather than reported with false confidence; the caller
+    (props_predictions.py) falls back to the hand-picked default for it.
     """
     print("  Fetching historical injury reports...")
     injuries = fetch_historical_injuries(pbp_seasons)
@@ -168,8 +179,11 @@ def fit_injury_multipliers(pbp_seasons, player_game_asof):
             valid = sub[(sub[usage_col] >= 2.0) & sub[usage_col].notna() & sub[actual_col].notna()]
             if len(valid):
                 ratios.extend((valid[actual_col] / valid[usage_col]).clip(0, 3).tolist())
-        if ratios:
+        if len(ratios) >= MIN_INJURY_SAMPLES:
             results[status] = {"multiplier": round(float(np.median(ratios)), 2), "n_samples": len(ratios)}
+        elif ratios:
+            print(f"  {status}: only {len(ratios)} samples (< {MIN_INJURY_SAMPLES}) - "
+                  f"too few to trust, keeping the hand-picked default for this status.")
 
     return results if results else None
 
