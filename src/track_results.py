@@ -112,7 +112,7 @@ def summarize(log):
     recent_weeks = pd.MultiIndex.from_frame(distinct_weeks.tail(LAST_N_WEEKS))
     recent_mask = pd.MultiIndex.from_frame(graded[["season", "week"]]).isin(recent_weeks)
 
-    summary = {"n_graded_games": int(len(graded)), "last_updated": pd.Timestamp.utcnow().isoformat()}
+    summary = {"n_graded_games": int(len(graded)), "last_updated": pd.Timestamp.now("UTC").isoformat()}
     windows = {"season_to_date": graded, f"last_{LAST_N_WEEKS}_weeks": graded[recent_mask]}
 
     for window_name, window_df in windows.items():
