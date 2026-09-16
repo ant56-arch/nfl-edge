@@ -22,6 +22,8 @@ CHECKS = {
     "projected_spread": (-40, 40),
     "projected_total": (10, 90),
     "home_win_prob": (0.01, 0.99),
+    "model_spread": (-40, 40),
+    "model_total": (10, 90),
 }
 
 PROPS_CHECKS = {

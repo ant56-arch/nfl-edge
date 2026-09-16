@@ -1,0 +1,37 @@
+{
+  "n_graded_games": 570,
+  "current_season_year": 2026,
+  "last_updated": "2026-09-16T15:05:08.382596+00:00",
+  "all_time": {
+    "model": {
+      "wins": 369,
+      "losses": 201,
+      "record": "369-201",
+      "pick_accuracy": 0.647,
+      "spread_mae": 10.15,
+      "total_mae": 10.25,
+      "brier_score": 0.2177,
+      "n_games": 570
+    },
+    "sharp": {
+      "wins": 389,
+      "losses": 181,
+      "record": "389-181",
+      "pick_accuracy": 0.682,
+      "spread_mae": 9.69,
+      "total_mae": 10.07,
+      "brier_score": 0.2062,
+      "n_games": 570
+    },
+    "vegas": {
+      "wins": 389,
+      "losses": 181,
+      "record": "389-181",
+      "pick_accuracy": 0.682,
+      "spread_mae": 9.69,
+      "total_mae": 10.1,
+      "brier_score": 0.2057,
+      "n_games": 570
+    }
+  }
+}
