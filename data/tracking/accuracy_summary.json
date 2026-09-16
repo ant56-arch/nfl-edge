@@ -1,0 +1,50 @@
+{
+  "n_graded_games": 570,
+  "last_updated": "2026-09-16T14:28:29.305297+00:00",
+  "season_to_date": {
+    "model": {
+      "pick_accuracy": 0.647,
+      "spread_mae": 10.15,
+      "total_mae": 10.25,
+      "brier_score": 0.2177,
+      "n_games": 570
+    },
+    "sharp": {
+      "pick_accuracy": 0.682,
+      "spread_mae": 9.69,
+      "total_mae": 10.07,
+      "brier_score": 0.2062,
+      "n_games": 570
+    },
+    "vegas": {
+      "pick_accuracy": 0.682,
+      "spread_mae": 9.69,
+      "total_mae": 10.1,
+      "brier_score": 0.2057,
+      "n_games": 570
+    }
+  },
+  "last_4_weeks": {
+    "model": {
+      "pick_accuracy": 0.769,
+      "spread_mae": 8.36,
+      "total_mae": 10.94,
+      "brier_score": 0.1988,
+      "n_games": 13
+    },
+    "sharp": {
+      "pick_accuracy": 0.769,
+      "spread_mae": 8.58,
+      "total_mae": 10.96,
+      "brier_score": 0.1861,
+      "n_games": 13
+    },
+    "vegas": {
+      "pick_accuracy": 0.769,
+      "spread_mae": 8.58,
+      "total_mae": 11.04,
+      "brier_score": 0.1852,
+      "n_games": 13
+    }
+  }
+}
