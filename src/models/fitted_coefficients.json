@@ -1,5 +1,5 @@
 {
-  "fitted_at": "2026-09-15T19:36:26.481494+00:00",
+  "fitted_at": "2026-09-16T17:08:05.664649+00:00",
   "train_seasons": [
     2013,
     2014,
@@ -18,12 +18,12 @@
   ],
   "n_games_used": 3348,
   "coefficients": {
-    "epa_diff_coef": 52.85583184837676,
-    "third_down_weight": 10.08628797981048,
-    "redzone_weight": -1.4225615427944878,
-    "explosive_weight": 16.34512560718941,
+    "epa_diff_coef": 52.855831848376745,
+    "third_down_weight": 10.086287979810448,
+    "redzone_weight": -1.4225615427944618,
+    "explosive_weight": 16.34512560718942,
     "sack_weight": -19.76406506505512,
-    "home_field_advantage": 1.9535795089555918,
+    "home_field_advantage": 1.9535795089555936,
     "margin_std_dev": 13.324675795739285,
     "total_coef": 32.95889029800272,
     "total_intercept": 46.10681444405385,
