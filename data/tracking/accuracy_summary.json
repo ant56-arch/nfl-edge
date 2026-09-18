@@ -1,37 +1,101 @@
 {
-  "n_graded_games": 570,
+  "n_graded_games": 571,
   "current_season_year": 2026,
-  "last_updated": "2026-09-16T23:47:46.557918+00:00",
+  "last_updated": "2026-09-18T15:35:39.976558+00:00",
   "all_time": {
     "model": {
-      "wins": 369,
+      "wins": 370,
       "losses": 201,
-      "record": "369-201",
-      "pick_accuracy": 0.647,
-      "spread_mae": 10.15,
-      "total_mae": 10.25,
-      "brier_score": 0.2177,
-      "n_games": 570
+      "record": "370-201",
+      "pick_accuracy": 0.648,
+      "spread_mae": 10.14,
+      "total_mae": 10.27,
+      "brier_score": 0.2175,
+      "n_games": 571
     },
     "sharp": {
-      "wins": 389,
+      "wins": 390,
       "losses": 181,
-      "record": "389-181",
-      "pick_accuracy": 0.682,
-      "spread_mae": 9.69,
-      "total_mae": 10.07,
-      "brier_score": 0.2062,
-      "n_games": 570
+      "record": "390-181",
+      "pick_accuracy": 0.683,
+      "spread_mae": 9.68,
+      "total_mae": 10.08,
+      "brier_score": 0.206,
+      "n_games": 571
     },
     "vegas": {
-      "wins": 389,
+      "wins": 390,
       "losses": 181,
-      "record": "389-181",
-      "pick_accuracy": 0.682,
-      "spread_mae": 9.69,
-      "total_mae": 10.1,
-      "brier_score": 0.2057,
-      "n_games": 570
+      "record": "390-181",
+      "pick_accuracy": 0.683,
+      "spread_mae": 9.68,
+      "total_mae": 10.11,
+      "brier_score": 0.2055,
+      "n_games": 571
+    }
+  },
+  "current_season": {
+    "model": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 3.1,
+      "total_mae": 22.6,
+      "brier_score": 0.0918,
+      "n_games": 1
+    },
+    "sharp": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 5.5,
+      "total_mae": 18.5,
+      "brier_score": 0.103,
+      "n_games": 1
+    },
+    "vegas": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 5.5,
+      "total_mae": 17.5,
+      "brier_score": 0.1056,
+      "n_games": 1
+    }
+  },
+  "last_4_weeks": {
+    "model": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 3.1,
+      "total_mae": 22.6,
+      "brier_score": 0.0918,
+      "n_games": 1
+    },
+    "sharp": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 5.5,
+      "total_mae": 18.5,
+      "brier_score": 0.103,
+      "n_games": 1
+    },
+    "vegas": {
+      "wins": 1,
+      "losses": 0,
+      "record": "1-0",
+      "pick_accuracy": 1.0,
+      "spread_mae": 5.5,
+      "total_mae": 17.5,
+      "brier_score": 0.1056,
+      "n_games": 1
     }
   }
 }
