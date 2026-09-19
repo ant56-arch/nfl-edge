@@ -50,6 +50,24 @@ body {
   background: linear-gradient(90deg, var(--primary), var(--market));
 }
 
+/* Soft blurred color blobs behind the header only - a common "hero section"
+   background treatment. Fixed + negative z-index so it sits above the plain
+   page background but behind every real element; it never intercepts clicks. */
+.hero-glow {
+  position: fixed;
+  top: -160px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1000px, 140vw);
+  height: 460px;
+  background:
+    radial-gradient(circle at 28% 35%, rgba(194, 65, 12, 0.12), transparent 60%),
+    radial-gradient(circle at 74% 55%, rgba(8, 145, 178, 0.12), transparent 55%);
+  filter: blur(20px);
+  z-index: -1;
+  pointer-events: none;
+}
+
 .wrap {
   max-width: 900px;
   margin: 0 auto;
@@ -57,7 +75,7 @@ body {
 }
 
 header.masthead {
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 
 .masthead-row {
@@ -100,10 +118,14 @@ header.masthead .tagline {
 nav.tabs {
   display: inline-flex;
   gap: 2px;
-  margin-top: 22px;
+  margin-bottom: 22px;
   padding: 4px;
   background: #e9edf3;
   border-radius: 999px;
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
 
 nav.tabs a {
@@ -251,25 +273,13 @@ table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
 .accent { color: var(--primary); font-weight: 700; }
 .market-color { color: var(--market); }
 
-.hero-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-  padding: 20px 22px;
-  background: linear-gradient(135deg, var(--primary-tint) 0%, #fff 65%);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-md);
-}
-
 .hero-number {
   font-family: var(--font-mono);
   font-size: 36px;
   font-weight: 700;
   color: var(--primary);
   line-height: 1.1;
-  margin-top: 4px;
+  margin: 6px 0;
 }
 .hero-label {
   font-size: 11px;
@@ -278,26 +288,51 @@ table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
   letter-spacing: 0.6px;
   text-transform: uppercase;
 }
-.hero-panel .pill { font-size: 12px; padding: 8px 16px; }
 
-.stat-grid {
+/* Bento grid: mixed tile sizes (one big square + two wide bars + four small
+   tiles) instead of a uniform row - the size itself signals which number
+   matters most, the way a bento box's biggest compartment is never a side. */
+.bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 4px;
 }
-.stat-tile {
+.bento-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   border: 1px solid var(--card-border);
   border-top: 3px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 13px 15px;
   transition: box-shadow 0.15s ease;
 }
-.stat-tile:hover { box-shadow: var(--shadow-sm); }
-.stat-tile.tile-primary { border-top-color: var(--primary); }
-.stat-tile.tile-market { border-top-color: var(--market); }
-.stat-tile .value { font-family: var(--font-mono); font-size: 21px; font-weight: 700; }
-.stat-tile .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+.bento-tile:hover { box-shadow: var(--shadow-sm); }
+.bento-tile.tile-primary { border-top-color: var(--primary); }
+.bento-tile.tile-market { border-top-color: var(--market); }
+.bento-tile .value { font-family: var(--font-mono); font-size: 21px; font-weight: 700; }
+.bento-tile .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+
+.bento-hero {
+  grid-column: span 2;
+  grid-row: span 2;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 22px;
+  background: linear-gradient(135deg, var(--primary-tint) 0%, #fff 65%);
+  border-top: 1px solid var(--card-border);
+}
+.bento-hero .pill { font-size: 12px; padding: 8px 16px; margin-top: 8px; }
+
+.bento-wide {
+  grid-column: span 2;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.bento-wide .label { margin-top: 0; }
+.bento-wide .value { font-size: 22px; }
 
 .edge-section { margin-bottom: 22px; }
 .edge-kicker {
@@ -366,25 +401,86 @@ table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
 }
 
 footer.site-footer {
-  margin-top: 28px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--card-border);
+  color: var(--text-muted);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.footer-heading {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.footer-grid p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--card-border);
   font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.6;
 }
+.footer-brand { font-weight: 800; color: var(--text-primary); }
+.footer-brand span { color: var(--primary); }
 
-footer.site-footer a { color: var(--text-muted); }
+.btn-primary {
+  display: inline-block;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+
+.error-body { text-align: center; padding: 56px 24px; }
+.error-code {
+  font-size: 68px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -2px;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+.error-body h2 { font-size: 19px; margin: 18px 0 8px 0; }
+.error-body p { max-width: 40ch; margin: 0 auto 24px auto; font-size: 13px; line-height: 1.6; }
 
 @media (max-width: 560px) {
   .wrap { padding: 24px 14px 48px 14px; }
   header.masthead .wordmark { font-size: 25px; }
   header.masthead .tagline { max-width: none; }
   .hero-number { font-size: 29px; }
-  .hero-panel { padding: 16px; }
   .card-header { padding: 16px 16px 14px 16px; }
   .card-body { padding: 14px 16px 18px 16px; }
   table.data { font-size: 12px; }
-  nav.tabs { display: flex; width: 100%; }
+  nav.tabs { display: flex; width: 100%; position: static; box-shadow: none; }
   nav.tabs a { flex: 1; text-align: center; padding: 8px 6px; }
+
+  .bento-grid { grid-template-columns: repeat(2, 1fr); }
+  .bento-hero { grid-column: span 2; grid-row: span 1; padding: 18px; }
+  .bento-wide { grid-column: span 2; }
+
+  .footer-grid { grid-template-columns: 1fr; gap: 18px; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
