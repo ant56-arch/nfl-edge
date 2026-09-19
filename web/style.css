@@ -228,6 +228,40 @@ table.data tbody tr:hover { background: var(--primary-tint); }
 table.data tbody tr.row-flag { background: var(--danger-tint); }
 table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
 
+/* Matchup bar: both teams' logos over a background that fades from the away
+   team's color to the home team's - replaces plain "AWAY @ HOME" text. */
+table.data td:has(.matchup-bar) { padding: 6px 8px; white-space: normal; }
+.matchup-bar {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 8px 10px;
+}
+.matchup-fade { position: absolute; inset: 0; z-index: 0; }
+.matchup-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.matchup-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.team-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.matchup-at { color: var(--text-faint); font-size: 11px; }
+.matchup-right {
+  margin-left: auto;
+  font-size: 11px;
+  white-space: nowrap;
+  padding-left: 10px;
+}
+
 .day-header td {
   padding: 16px 10px 6px 10px;
   font-size: 10px;
@@ -332,14 +366,16 @@ table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
 
 .bento-hero {
   grid-column: span 2;
-  grid-row: span 2;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 22px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 22px;
   background: linear-gradient(135deg, var(--primary-tint) 0%, #fff 65%);
   border-top: 1px solid var(--card-border);
 }
-.bento-hero .pill { font-size: 12px; padding: 8px 16px; margin-top: 8px; }
+.bento-hero .hero-number { margin: 4px 0 0 0; }
+.bento-hero .pill { font-size: 12px; padding: 8px 16px; }
 
 .bento-wide {
   grid-column: span 2;
@@ -497,7 +533,7 @@ footer.site-footer {
   .subtab { flex: 1; text-align: center; padding: 7px 4px; }
 
   .bento-grid { grid-template-columns: repeat(2, 1fr); }
-  .bento-hero { grid-column: span 2; grid-row: span 1; padding: 18px; }
+  .bento-hero { grid-column: span 2; padding: 16px; flex-direction: column; align-items: flex-start; }
   .bento-wide { grid-column: span 2; }
 
   .footer-grid { grid-template-columns: 1fr; gap: 18px; }
