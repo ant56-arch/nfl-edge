@@ -239,14 +239,30 @@ table.data tbody tr.row-flag:hover { background: var(--danger-tint); }
   background: transparent !important;
 }
 
-.props-heading {
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  margin: 24px 0 12px 0;
-  color: var(--text-primary);
+.subtabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--row-alt-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  margin-bottom: 18px;
 }
+.subtab {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.subtab:hover { color: var(--text-primary); }
+.subtab.active { color: var(--primary); background: var(--card-bg); box-shadow: var(--shadow-sm); }
+.cat-panel[hidden] { display: none; }
 
 .table-footnote {
   font-size: 11px;
@@ -475,7 +491,10 @@ footer.site-footer {
   .card-body { padding: 14px 16px 18px 16px; }
   table.data { font-size: 12px; }
   nav.tabs { display: flex; width: 100%; position: static; box-shadow: none; }
-  nav.tabs a { flex: 1; text-align: center; padding: 8px 6px; }
+  nav.tabs a { flex: 1; text-align: center; padding: 8px 2px; font-size: 11px; }
+
+  .subtabs { width: 100%; display: flex; }
+  .subtab { flex: 1; text-align: center; padding: 7px 4px; }
 
   .bento-grid { grid-template-columns: repeat(2, 1fr); }
   .bento-hero { grid-column: span 2; grid-row: span 1; padding: 18px; }

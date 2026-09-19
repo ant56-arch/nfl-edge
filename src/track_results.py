@@ -58,8 +58,11 @@ def load_predictions_snapshot():
         if c not in games.columns:
             games[c] = np.nan
 
+    if "game_type" not in games.columns:
+        games["game_type"] = np.nan
+
     snapshot = games[KEY_COLS + [
-        "gameday", "model_spread", "model_total", "model_home_win_prob",
+        "gameday", "game_type", "model_spread", "model_total", "model_home_win_prob",
         "projected_spread", "projected_total", "home_win_prob",
         "vegas_home_favored_by", "total_line", "vegas_home_win_prob",
     ]].copy()
