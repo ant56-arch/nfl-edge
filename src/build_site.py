@@ -19,6 +19,7 @@ import numpy as np
 import json
 import os
 import shutil
+import hashlib
 from datetime import datetime, timezone
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
@@ -49,6 +50,23 @@ ICONS = {
 def icon(name):
     return (f'<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
             f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{ICONS[name]}</svg>')
+
+_ASSET_VERSION = None
+
+def asset_version():
+    """A content hash of style.css/site.js, appended as a ?v= query string so
+    a redeploy always busts stale browser/CDN caches of these files - without
+    it, an HTML page can update (new markup, new classes) while a visitor's
+    browser keeps serving its old cached stylesheet that doesn't know about
+    them yet, making the site look broken until a hard refresh."""
+    global _ASSET_VERSION
+    if _ASSET_VERSION is None:
+        h = hashlib.md5()
+        for name in ("style.css", "site.js"):
+            with open(os.path.join(WEB_SRC_DIR, name), "rb") as f:
+                h.update(f.read())
+        _ASSET_VERSION = h.hexdigest()[:10]
+    return _ASSET_VERSION
 
 def load_data():
     games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
@@ -105,6 +123,7 @@ def page_shell(title, active_tab, body_html):
         for href, tab, label in tabs
     )
     generated = datetime.now(timezone.utc).strftime("%b %d, %Y %H:%M UTC")
+    ver = asset_version()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -116,7 +135,7 @@ def page_shell(title, active_tab, body_html):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v={ver}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -138,7 +157,7 @@ def page_shell(title, active_tab, body_html):
     held-out seasons). Vegas lines via DraftKings (the-odds-api.com) where available. Not betting advice.
   </footer>
 </div>
-<script src="site.js"></script>
+<script src="site.js?v={ver}"></script>
 </body>
 </html>"""
 
