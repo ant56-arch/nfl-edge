@@ -1,6 +1,7 @@
 data/raw/
 data/historical_raw/
 data/processed/
+dist/
 __pycache__/
 *.pyc
 .DS_Store

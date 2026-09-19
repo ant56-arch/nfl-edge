@@ -1,0 +1,260 @@
+/*
+NFL Edge site stylesheet.
+Same brand as the (now retired) email: burnt-orange for our own numbers,
+cyan for market/Vegas data, reserved green/red for genuinely good/bad
+signals. Validated as a categorical pair with the dataviz skill's
+validate_palette.js (light mode only for now - see build_site.py).
+*/
+
+:root {
+  --page-bg: #eef1f6;
+  --card-bg: #ffffff;
+  --card-border: #e2e6ed;
+  --row-alt-bg: #f7f9fc;
+  --text-primary: #111827;
+  --text-muted: #6b7280;
+  --text-faint: #a3aab5;
+
+  --primary: #c2410c;
+  --primary-tint: #fdece2;
+  --market: #0891b2;
+  --market-tint: #e0f4f8;
+  --danger: #b91c1c;
+  --danger-tint: #fbe9e9;
+  --positive: #15803d;
+  --positive-tint: #e8f5ec;
+
+  --font-display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 16px 64px 16px;
+}
+
+header.masthead {
+  margin-bottom: 24px;
+}
+
+header.masthead .wordmark {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+header.masthead .wordmark span { color: var(--primary); }
+
+header.masthead .accent-bar {
+  height: 3px;
+  width: 48px;
+  background: var(--primary);
+  border-radius: 2px;
+  margin: 10px 0;
+}
+
+header.masthead .subline {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+nav.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 18px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+nav.tabs a {
+  display: inline-block;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+}
+
+nav.tabs a.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 18px 20px 12px 20px;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-header .bar {
+  width: 4px;
+  align-self: stretch;
+  background: var(--primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.card-header h2 {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.card-header .subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.card-body { padding: 16px 20px 20px 20px; }
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.data th, table.data td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--card-border);
+}
+
+table.data th {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--card-border);
+  white-space: nowrap;
+}
+
+table.data th[data-sort-key] { cursor: pointer; user-select: none; }
+table.data th[data-sort-key]:hover { color: var(--text-primary); }
+table.data th.sorted-asc::after { content: " \25B2"; font-size: 9px; }
+table.data th.sorted-desc::after { content: " \25BC"; font-size: 9px; }
+
+table.data td.num, table.data th.num { text-align: right; font-family: var(--font-mono); }
+
+table.data tbody tr:nth-child(even) { background: var(--row-alt-bg); }
+table.data tbody tr.row-flag { background: var(--danger-tint); }
+
+.day-header td {
+  padding: 14px 8px 4px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: none;
+  background: transparent !important;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  border-radius: 10px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.pill-primary { color: var(--primary); background: var(--primary-tint); }
+.pill-market { color: var(--market); background: var(--market-tint); }
+.pill-danger { color: var(--danger); background: var(--danger-tint); }
+.pill-positive { color: var(--positive); background: var(--positive-tint); }
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.accent { color: var(--primary); font-weight: 700; }
+.market-color { color: var(--market); }
+
+.hero-number {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.stat-tile {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.stat-tile .value { font-family: var(--font-mono); font-size: 20px; font-weight: 700; }
+.stat-tile .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+.chart-card canvas { max-width: 100%; }
+
+.week-picker {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.empty-state {
+  border: 1px dashed var(--card-border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+footer.site-footer {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 480px) {
+  header.masthead .wordmark { font-size: 24px; }
+  .hero-number { font-size: 28px; }
+  table.data { font-size: 12px; }
+}
