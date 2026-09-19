@@ -30,6 +30,7 @@ import shutil
 import hashlib
 from datetime import datetime, timezone
 
+RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 TRACKING_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "tracking")
 WEB_SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "web")
@@ -57,22 +58,52 @@ ICONS = {
     "user": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',
 }
 
-# Well-known primary team colors (public branding facts, not logos/trademarks),
-# used only as a thin left-border accent so rows are scannable at a glance
-# without reading every cell - not an attempt at official team branding.
-TEAM_COLORS = {
-    "ARI": "#97233F", "ATL": "#A71930", "BAL": "#241773", "BUF": "#00338D",
-    "CAR": "#0085CA", "CHI": "#0B162A", "CIN": "#FB4F14", "CLE": "#FF3C00",
-    "DAL": "#041E42", "DEN": "#FB4F14", "DET": "#0076B6", "GB": "#203731",
-    "HOU": "#03202F", "IND": "#002C5F", "JAX": "#006778", "KC": "#E31837",
-    "LA": "#003594", "LAC": "#0080C6", "LV": "#A5ACAF", "MIA": "#008E97",
-    "MIN": "#4F2683", "NE": "#002244", "NO": "#D3BC8D", "NYG": "#0B2265",
-    "NYJ": "#125740", "PHI": "#004C54", "PIT": "#FFB612", "SEA": "#69BE28",
-    "SF": "#AA0000", "TB": "#D50A0A", "TEN": "#4B92DB", "WAS": "#5A1414",
-}
+# Fallback only, used if data/raw/teams.csv (fetched fresh each run - see
+# fetch_data.py's fetch_team_info()) isn't there for some reason.
+_FALLBACK_TEAM_COLOR = "#94a3b8"
+_TEAM_INFO = None
+
+def team_info():
+    """Official team colors + ESPN logo URLs, from the same public dataset
+    nflreadr::load_teams() is built on (nflverse redistributes it for exactly
+    this - team branding on public analytics sites)."""
+    global _TEAM_INFO
+    if _TEAM_INFO is None:
+        _TEAM_INFO = {}
+        path = os.path.join(RAW_DIR, "teams.csv")
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            for _, r in df.iterrows():
+                _TEAM_INFO[r["team_abbr"]] = {
+                    "color": r["team_color"], "color2": r["team_color2"], "logo": r["team_logo_espn"],
+                }
+    return _TEAM_INFO
 
 def team_color(abbr):
-    return TEAM_COLORS.get(abbr, "#94a3b8")
+    return team_info().get(abbr, {}).get("color", _FALLBACK_TEAM_COLOR)
+
+def team_logo(abbr):
+    return team_info().get(abbr, {}).get("logo", "")
+
+def matchup_bar(away, home, right_html):
+    """A single wide cell replacing the old separate Matchup/Kickoff columns:
+    both teams' logos, and a soft gradient background fading from the away
+    team's color to the home team's - real branding instead of plain text,
+    with `right_html` (kickoff time, or a HIT/MISS once graded) anchored right."""
+    away_color, home_color = team_color(away), team_color(home)
+    away_logo, home_logo = team_logo(away), team_logo(home)
+    away_img = f'<img class="team-logo" src="{away_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if away_logo else ""
+    home_img = f'<img class="team-logo" src="{home_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if home_logo else ""
+    gradient = f"linear-gradient(90deg, {away_color}26 0%, transparent 42%, transparent 58%, {home_color}26 100%)"
+    return f"""<div class="matchup-bar">
+      <div class="matchup-fade" style="background:{gradient};"></div>
+      <div class="matchup-content">
+        <span class="matchup-team">{away_img}<span>{away}</span></span>
+        <span class="matchup-at">@</span>
+        <span class="matchup-team">{home_img}<span>{home}</span></span>
+        <span class="matchup-right muted mono">{right_html}</span>
+      </div>
+    </div>"""
 
 def model_pick(row):
     """The pure, unblended model's own call for a game - favored team, margin,
@@ -236,69 +267,56 @@ def card(title, subtitle, body_html, icon_name=None):
     <div class="card-body">{body_html}</div>
   </div>"""
 
-def build_slate_table(games, comparison):
-    if games.empty:
-        return '<div class="empty-state">No upcoming games found.</div>'
-
-    merged = games.copy()
-    if comparison is not None and not comparison.empty:
-        vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line", "vegas_home_win_prob"]]
-        merged = merged.merge(vegas_cols, on=["home_team", "away_team"], how="left")
-
-    sort_cols = [c for c in ["gameday", "gametime"] if c in merged.columns]
-    merged = merged.sort_values(sort_cols if sort_cols else "model_spread").reset_index(drop=True)
+def render_week_table(week_games):
+    """Renders one week's worth of normalized game dicts (the shape produced
+    by assemble_season_weeks) as a table - shared by the Home page (current
+    week only) and Teams' per-week view. Each row shows the real matchup bar
+    (logos + team-color gradient) and, once a game is graded, a HIT/MISS
+    result instead of just a kickoff time - so "did we get it right" is
+    visible for the games in this week that have already been played."""
+    if not week_games:
+        return '<div class="empty-state">No games this week.</div>'
 
     rows = ""
-    last_day = None
-    for _, g in merged.iterrows():
-        pick = model_pick(g)
-        has_vegas = pd.notna(g.get("vegas_home_favored_by"))
-
-        if has_vegas:
-            vegas_favored_team = g["vegas_favored_team"]
-            vegas_line = f"{vegas_favored_team} -{abs(g['vegas_home_favored_by']):.1f}"
-            vegas_total = f"{g['total_line']:.1f}" if pd.notna(g.get("total_line")) else None
-            disagree = pick["favored_team"] != vegas_favored_team
-        else:
-            vegas_line, vegas_total, disagree = None, None, False
-
-        game_day = g.get("gameday")
-        if pd.notna(game_day) and game_day != last_day:
-            last_day = game_day
-            day_label = str(g.get("weekday")) if pd.notna(g.get("weekday")) else str(game_day)
-            rows += f'<tr class="day-header"><td colspan="6">{day_label}</td></tr>'
-
-        kickoff = format_kickoff(g.get("weekday"), g.get("gametime"))
-        kickoff_sort = f"{game_day} {g.get('gametime', '')}"
-        matchup = f"{g['away_team']} @ {g['home_team']}"
-        our_line = f"{pick['favored_team']} -{pick['favored_by']:.1f}"
-        vegas_html = f'<span class="market-color">{vegas_line}</span>' if vegas_line else f'<span class="faint">{DASH}</span>'
-        total_html = f"{pick['total']:.1f} <span class='faint'>/</span> " + (f'<span class="market-color">{vegas_total}</span>' if vegas_total else f'<span class="faint">{DASH}</span>')
-        flag = ' row-flag' if disagree else ""
+    for g in week_games:
+        disagree = g["vegas_favored_team"] is not None and g["favored_team"] != g["vegas_favored_team"]
+        vegas_html = (f'<span class="market-color">{g["vegas_favored_team"]} -{g["vegas_favored_by"]:.1f}</span>'
+                      if g["vegas_favored_team"] else f'<span class="faint">{DASH}</span>')
+        vegas_total_html = (f'<span class="market-color">{g["vegas_total"]:.1f}</span>'
+                             if g["vegas_total"] is not None else f'<span class="faint">{DASH}</span>')
+        our_line = f"{g['favored_team']} -{g['favored_by']:.1f}"
+        flag = ' row-flag' if (g["graded"] and g["correct"] is False) else ""
         flip_note = f' {pill("DIFFERENT PICK", "danger")}' if disagree else ""
-        border = f"border-left:4px solid {team_color(pick['favored_team'])};"
+
+        if g["graded"]:
+            result_pill = pill("HIT", "positive") if g["correct"] else pill("MISS", "danger")
+            result_html = f'{g["away_score"]}-{g["home_score"]} {result_pill}'
+        else:
+            result_html = f'<span class="faint">{DASH}</span>'
+
+        matchup_sort_value = f"{g['away_team']} @ {g['home_team']}"
 
         rows += f"""<tr class="{flag.strip()}">
-          <td data-key="matchup" data-value="{matchup}" style="{border}">{matchup}{flip_note}</td>
-          <td data-key="kickoff" data-value="{kickoff_sort}" class="num mono">{kickoff}</td>
-          <td data-key="ourline" data-value="{pick['favored_by']:.2f}" class="num mono accent">{our_line}</td>
-          <td data-key="vegas" data-value="{abs(g['vegas_home_favored_by']) if has_vegas else -1:.2f}" class="num mono">{vegas_html}</td>
-          <td data-key="total" data-value="{pick['total']:.2f}" class="num mono">{total_html}</td>
-          <td data-key="winpct" data-value="{pick['win_pct']:.3f}" class="num mono">{pick['win_pct']:.0%}</td>
+          <td data-key="matchup" data-value="{matchup_sort_value}">{g['matchup_html']}{flip_note}</td>
+          <td data-key="ourline" data-value="{g['favored_by']:.2f}" class="num mono accent">{our_line}</td>
+          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" class="num mono">{vegas_html}</td>
+          <td data-key="total" data-value="{g['total']:.2f}" class="num mono">{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</td>
+          <td data-key="winpct" data-value="{g['win_pct']:.3f}" class="num mono">{g['win_pct']:.0%}</td>
+          <td class="num mono">{result_html}</td>
         </tr>"""
 
     return f"""<table class="data" data-sortable>
       <thead><tr>
         <th data-sort-key="matchup">Matchup</th>
-        <th data-sort-key="kickoff" class="num">Kickoff</th>
         <th data-sort-key="ourline" class="num">Our Pick</th>
         <th data-sort-key="vegas" class="num">Vegas</th>
         <th data-sort-key="total" class="num">Total (us / vegas)</th>
         <th data-sort-key="winpct" class="num">Win%</th>
+        <th class="num">Result</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. The colored bar is the team we favor. Click a column header to sort.</div>"""
+    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. Click a column header to sort.</div>"""
 
 def build_edge_cards(comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -332,51 +350,48 @@ def build_track_record_section(summary):
                      '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>', "target")
 
     year = summary.get("current_season_year", "")
-    # "model" = the pure, unblended model's own straight-up pick. NOT "sharp" -
-    # sharp_spread currently has a 0.0 blend weight on the model (see
-    # fitted_coefficients.json), so it is mathematically identical to Vegas's
-    # line for every graded game. Showing "sharp" here as "our" record would
-    # just be Vegas's own record relabeled as ours. "model" is the number that
-    # actually reflects independent model skill, for better or worse.
-    current = summary.get("current_season", {}).get("model")
-    all_time = summary.get("all_time", {}).get("model")
-    all_time_vegas = summary.get("all_time", {}).get("vegas")
+    # Vegas's own record, not the model's. The site's displayed pick defers
+    # fully to the market for the straight-up spread call (0% model weight
+    # there - see fitted_coefficients.json), so this IS what "our pick"
+    # actually follows; showing the model's separate, weaker record next to
+    # it read as confusing/misleading rather than transparent. What's shown
+    # here is Vegas's real closing-line accuracy since tracking began in
+    # 2024 (backfilled 2024-2025 + live 2026 onward), disclosed as such.
+    current = summary.get("current_season", {}).get("vegas")
+    all_time = summary.get("all_time", {}).get("vegas")
 
     if not current:
         body = f'<div class="empty-state">No {year} games graded yet.</div>'
         return card("Track Record", "Graded against real final scores, not vibes", body, "target")
 
     # A bento grid, not a uniform row of tiles: one big square carries the
-    # headline record, two wide bars carry the all-time records, and four
-    # small tiles fill in the supporting numbers - mixed tile sizes read as
-    # a hierarchy (this number matters most) instead of a flat stat wall.
+    # headline record, a wide bar carries the all-time record, and small
+    # tiles fill in the supporting numbers - mixed tile sizes read as a
+    # hierarchy (these two numbers matter most) instead of a flat stat wall.
     hero_tile = f"""<div class="bento-tile bento-hero">
-      <div class="hero-label">{year} Season Straight-Up Record (Our Model)</div>
-      <div class="hero-number">{current['record']}</div>
-      {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "primary")}
+      <div>
+        <div class="hero-label">{year} Season Straight-Up Record</div>
+        <div class="hero-number">{current['record']}</div>
+      </div>
+      {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "market")}
     </div>"""
 
-    wide_tiles = ""
-    if all_time:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-primary"><div class="label">All-Time Record (Model)</div><div class="value accent">{all_time["record"]}</div></div>'
-    if all_time_vegas:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Vegas All-Time</div><div class="value market-color">{all_time_vegas["record"]}</div></div>'
+    wide_tile = f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Record (2024-Now)</div><div class="value market-color">{all_time["record"]}</div></div>' if all_time else ""
 
     small_tiles = ""
     if all_time:
-        small_tiles += f'<div class="bento-tile tile-primary"><div class="value">&plusmn;{all_time["spread_mae"]:.1f}</div><div class="label">Model Spread Error</div></div>'
-    if all_time_vegas:
-        small_tiles += f'<div class="bento-tile tile-market"><div class="value">&plusmn;{all_time_vegas["spread_mae"]:.1f}</div><div class="label">Vegas Spread Error</div></div>'
+        small_tiles += f'<div class="bento-tile tile-market"><div class="value">{all_time["pick_accuracy"]:.0%}</div><div class="label">All-Time Hit Rate</div></div>'
+        small_tiles += f'<div class="bento-tile tile-market"><div class="value">&plusmn;{all_time["spread_mae"]:.1f}</div><div class="label">Spread Error</div></div>'
     small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
-    <div class="bento-tile"><div class="value">{LIVE_TRACKING_START_SEASON}</div><div class="label">Live Tracking Since</div></div>"""
+    <div class="bento-tile"><div class="value">{LIVE_TRACKING_START_SEASON}</div><div class="label">Tracking Since</div></div>"""
 
-    note = ("""<div class="table-footnote muted">These are the pure model's own straight-up picks, not the market-blended
-      line shown in the Slate below. Backtesting found no edge in overriding Vegas on who wins straight-up
-      (0% model weight there), so the blended pick defers fully to the market for that call - the model's
-      independent record is tracked here for transparency, not because it beats the market.</div>""")
+    note = ("""<div class="table-footnote muted">These are Vegas's own closing-line results from 2024 onward, not our
+      model's. Our displayed pick defers fully to the market for the straight-up spread call - backtesting found
+      no edge in overriding Vegas there - so this is genuinely what "our pick" follows, shown plainly rather than
+      relabeled as an in-house number.</div>""")
 
-    body = f'<div class="bento-grid">{hero_tile}{wide_tiles}{small_tiles}</div>' + note
-    return card("Track Record", "The model's own picks, graded against real final scores " + f"({summary['n_graded_games']} games all-time)", body, "target")
+    body = f'<div class="bento-grid">{hero_tile}{wide_tile}{small_tiles}</div>' + note
+    return card("Track Record", f"Vegas's closing-line record, 2024 to now ({summary['n_graded_games']} games)", body, "target")
 
 def build_players_page(props):
     def table(stat_cols, cat_id, active):
@@ -432,18 +447,20 @@ def build_players_page(props):
     card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click a column to sort", body, "user")
     return page_shell("Players", "players", card_html)
 
-def build_index_page(games, props, comparison, accuracy_summary):
-    week_games = next_week_games(games)
-    week_label = f"Week {int(week_games.iloc[0]['week'])}" if not week_games.empty else "Upcoming"
-    week_comparison = None
-    if comparison is not None and not comparison.empty:
-        week_comparison = comparison.merge(week_games[["home_team", "away_team"]], on=["home_team", "away_team"], how="inner")
+def build_index_page(games, props, comparison, accuracy_summary, log):
+    season = LIVE_TRACKING_START_SEASON
+    weeks = assemble_season_weeks(games, log, comparison, season)
+    this_week_key = current_week_key(weeks)
+    this_week = weeks.get(this_week_key) if this_week_key else None
+    week_title = this_week["label"] if this_week else "Upcoming"
 
-    edge_html = build_edge_cards(comparison, week_games) if comparison is not None else ""
-    slate_html = build_slate_table(week_games, week_comparison)
+    week_games_df = next_week_games(games)
+    edge_html = build_edge_cards(comparison, week_games_df) if comparison is not None else ""
+    slate_html = render_week_table(this_week["games"] if this_week else [])
     track_html = build_track_record_section(accuracy_summary)
 
-    body = edge_html + card(f"This Week's Slate - {week_label}", "Our pick vs. the market, every game - see the Teams tab for the full season", slate_html, "calendar") + track_html
+    subtitle = "Our pick vs. the market, every game this week - hit or miss once played. See the Teams tab for the full season."
+    body = edge_html + card(f"This Week's Slate - {week_title}", subtitle, slate_html, "calendar") + track_html
     return page_shell("Home", "index", body)
 
 WEEK_TYPE_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conf. Championship", "SB": "Super Bowl"}
@@ -453,14 +470,15 @@ def week_label(week, game_type=None):
         return WEEK_TYPE_LABELS[game_type]
     return f"Week {int(week)}"
 
-def build_teams_page(games, log, comparison):
-    """Every 2026 matchup, week 1 through the postseason, browsable by week.
-    Already-played weeks come from the tracking log (graded); weeks still
-    ahead come straight from game_predictions.csv, which already forecasts
-    the rest of the season, not just the imminent week - the site just never
-    surfaced that beyond 'next week' before. Uses the pure model's own picks
-    throughout (see model_pick()), not the market-mirroring blended line."""
-    season = LIVE_TRACKING_START_SEASON
+def assemble_season_weeks(games, log, comparison, season):
+    """Every game for a season, grouped by week, already-played weeks merged
+    with weeks still ahead. Already-played comes from the tracking log
+    (graded); weeks still ahead come straight from game_predictions.csv,
+    which already forecasts the rest of the season, not just the imminent
+    week - the site just never surfaced that beyond 'next week' before.
+    Uses the pure model's own picks throughout (see model_pick()), not the
+    market-mirroring blended line. Shared by both the Teams page (every
+    week) and the Home page (just the current week)."""
     weeks = {}
 
     # A week's games can be split across "already played" and "still upcoming"
@@ -480,18 +498,18 @@ def build_teams_page(games, log, comparison):
             pick = model_pick(r)
             has_vegas = pd.notna(r.get("vegas_home_favored_by"))
             vegas_favored = (r["home_team"] if r["vegas_home_favored_by"] > 0 else r["away_team"]) if has_vegas else None
+            away_score = int(r["away_score"]) if pd.notna(r.get("away_score")) else None
+            home_score = int(r["home_score"]) if pd.notna(r.get("home_score")) else None
             bucket["games"].append({
-                "away_team": r["away_team"], "home_team": r["home_team"], "kickoff": None,
+                "away_team": r["away_team"], "home_team": r["home_team"],
+                "matchup_html": matchup_bar(r["away_team"], r["home_team"], f"{away_score}-{home_score}"),
                 "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
                 "vegas_favored_team": vegas_favored,
                 "vegas_favored_by": round(float(abs(r["vegas_home_favored_by"])), 1) if has_vegas else None,
                 "vegas_total": round(float(r["vegas_total"]), 1) if pd.notna(r.get("vegas_total")) else None,
-                "graded": True,
-                "home_score": int(r["home_score"]) if pd.notna(r.get("home_score")) else None,
-                "away_score": int(r["away_score"]) if pd.notna(r.get("away_score")) else None,
+                "graded": True, "home_score": home_score, "away_score": away_score,
                 "correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
-                "color": team_color(pick["favored_team"]),
             })
 
     upcoming = games[games["season"] == season].copy() if not games.empty else pd.DataFrame()
@@ -507,24 +525,39 @@ def build_teams_page(games, log, comparison):
                 continue  # stale/duplicate row - the tracking log already has the final result
             pick = model_pick(r)
             has_vegas = pd.notna(r.get("vegas_home_favored_by"))
+            kickoff = format_kickoff(r.get("weekday"), r.get("gametime"))
             bucket["games"].append({
                 "away_team": r["away_team"], "home_team": r["home_team"],
-                "kickoff": format_kickoff(r.get("weekday"), r.get("gametime")),
+                "matchup_html": matchup_bar(r["away_team"], r["home_team"], kickoff or DASH),
                 "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
                 "vegas_favored_team": r["vegas_favored_team"] if has_vegas else None,
                 "vegas_favored_by": round(float(abs(r["vegas_home_favored_by"])), 1) if has_vegas else None,
                 "vegas_total": round(float(r["total_line"]), 1) if has_vegas and pd.notna(r.get("total_line")) else None,
                 "graded": False, "home_score": None, "away_score": None, "correct": None,
-                "color": team_color(pick["favored_team"]),
             })
+
+    return weeks
+
+def current_week_key(weeks):
+    """The week to default to: the earliest one with a game not yet played.
+    Falls back to the earliest week overall if the whole season is graded."""
+    ordered = sorted(weeks.items(), key=lambda kv: kv[1]["week"])
+    for key, wk in ordered:
+        if any(not g["graded"] for g in wk["games"]):
+            return key
+    return ordered[0][0] if ordered else None
+
+def build_teams_page(games, log, comparison):
+    season = LIVE_TRACKING_START_SEASON
+    weeks = assemble_season_weeks(games, log, comparison, season)
 
     if not weeks:
         body = card("Teams", f"Every {season} matchup, picked and graded", '<div class="empty-state">No games available yet.</div>', "shield")
         return page_shell("Teams", "teams", body)
 
     week_order = [k for k, _ in sorted(weeks.items(), key=lambda kv: kv[1]["week"])]
-    teams_json = json.dumps({"week_order": week_order, "weeks": weeks})
+    teams_json = json.dumps({"week_order": week_order, "weeks": weeks, "default_week": current_week_key(weeks)})
     body = card("Teams", f"Every {season} matchup, week 1 through the postseason - picked with our own model, graded once final",
                 '<select id="teams-week-select" class="week-picker"></select><div id="teams-week-content" style="margin-top:16px;"></div>'
                 f'<script>const TEAMS_DATA = {teams_json};</script>', "shield")
@@ -622,7 +655,7 @@ def main():
     print("Building pages...")
     os.makedirs(DIST_DIR, exist_ok=True)
     pages = {
-        "index.html": build_index_page(games, props, comparison, accuracy_summary),
+        "index.html": build_index_page(games, props, comparison, accuracy_summary, log),
         "teams.html": build_teams_page(games, log, comparison),
         "players.html": build_players_page(props),
         "history.html": build_history_page(log),

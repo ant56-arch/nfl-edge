@@ -70,6 +70,14 @@ def fetch_schedules(seasons):
     df = pd.read_csv(url)
     return df[df["season"].isin(seasons)]
 
+def fetch_team_info():
+    """Pull official team colors and logo URLs - the same public dataset
+    nflreadr::load_teams() is built on, redistributed by nflverse for exactly
+    this kind of use (team branding on public analytics sites)."""
+    url = "https://raw.githubusercontent.com/nflverse/nflfastR-data/master/teams_colors_logos.csv"
+    df = pd.read_csv(url)
+    return df[["team_abbr", "team_color", "team_color2", "team_logo_espn"]]
+
 def fetch_rosters(seasons):
     """Pull weekly rosters for HISTORICAL seasons (used for feature engineering)."""
     frames = []
@@ -113,13 +121,18 @@ def main():
     schedules.to_csv(os.path.join(RAW_DIR, "schedules.csv"), index=False)
     print(f"  Total games: {len(schedules):,}")
 
-    print("\n[3/4] Historical weekly rosters (for feature engineering)...")
+    print("\n[3/5] Team colors and logos...")
+    teams = fetch_team_info()
+    teams.to_csv(os.path.join(RAW_DIR, "teams.csv"), index=False)
+    print(f"  Total teams: {len(teams):,}")
+
+    print("\n[4/5] Historical weekly rosters (for feature engineering)...")
     rosters = fetch_rosters(seasons)
     if not rosters.empty:
         rosters.to_parquet(os.path.join(RAW_DIR, "rosters.parquet"))
         print(f"  Total roster entries: {len(rosters):,}")
 
-    print("\n[4/4] Current live roster (who's on what team right now)...")
+    print("\n[5/5] Current live roster (who's on what team right now)...")
     current_season = current_nfl_season()
     current_roster = fetch_current_roster(current_season)
     if not current_roster.empty:

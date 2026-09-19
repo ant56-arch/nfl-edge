@@ -85,8 +85,6 @@ function initTeamsPicker() {
   buildWeekPicker(TEAMS_DATA, "teams-week-select", "teams-week-content", (week) => {
     let rows = "";
     week.games.forEach(g => {
-      const border = `border-left:4px solid ${g.color};`;
-      const matchup = `${g.away_team} @ ${g.home_team}`;
       const pick = `${g.favored_team} -${g.favored_by.toFixed(1)}`;
       const vegas = g.vegas_favored_team ? `${g.vegas_favored_team} -${g.vegas_favored_by.toFixed(1)}` : "&mdash;";
       let resultCell;
@@ -94,10 +92,10 @@ function initTeamsPicker() {
         const resultPill = g.correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>";
         resultCell = `${g.away_score}-${g.home_score} ${resultPill}`;
       } else {
-        resultCell = g.kickoff || "&mdash;";
+        resultCell = "<span class='faint'>&mdash;</span>";
       }
       rows += `<tr class="${g.graded && g.correct === false ? "row-flag" : ""}">
-        <td style="${border}">${matchup}</td>
+        <td>${g.matchup_html}</td>
         <td class="num mono accent">${pick}</td>
         <td class="num mono market-color">${vegas}</td>
         <td class="num mono">${g.total.toFixed(1)}</td>
@@ -109,11 +107,8 @@ function initTeamsPicker() {
         <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Vegas</th><th class="num">Total</th><th class="num">Win%</th><th class="num">Result</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="table-footnote muted">The colored bar is the team the model favors. Result shows kickoff time for upcoming games, final score once graded.</div>`;
-  }, (data) => {
-    const currentWeek = data.week_order.find(wk => data.weeks[wk].games.some(g => !g.graded));
-    return currentWeek || data.week_order[0];
-  });
+      <div class="table-footnote muted">Result shows the final score once graded.</div>`;
+  }, (data) => data.default_week || data.week_order[data.week_order.length - 1]);
 }
 initTeamsPicker();
 
