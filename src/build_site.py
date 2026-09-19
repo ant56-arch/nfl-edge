@@ -28,6 +28,14 @@ DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "dist")
 
 DASH = "—"
 
+# The 2024-2025 tracking history was backfilled after the fact (see
+# backfill_tracking.py's BACKFILL_SEASONS) by running a holdout-trained model
+# against seasons that already happened - useful as an archive of what the
+# system would have called, but not real picks made before kickoff. The
+# accuracy trend charts are meant to show actual live performance, so they
+# start at the first season the tracker ran for real.
+LIVE_TRACKING_START_SEASON = 2026
+
 def load_data():
     games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
     props = pd.read_csv(os.path.join(PROCESSED_DIR, "player_props.csv"))
@@ -321,8 +329,12 @@ def build_history_page(log):
 
 def build_accuracy_page(log):
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
+    if not graded.empty:
+        graded = graded[graded["season"] >= LIVE_TRACKING_START_SEASON]
     if graded.empty:
-        body = card("Accuracy Over Time", "Weekly trend, us vs. the market", '<div class="empty-state">No games graded yet.</div>')
+        body = card("Accuracy Over Time", "Weekly trend, us vs. the market",
+                     '<div class="empty-state">No live-tracked games graded yet - check back once the '
+                     f'{LIVE_TRACKING_START_SEASON} season kicks off.</div>')
         return page_shell("Accuracy", "accuracy", body)
 
     graded = graded.sort_values(["season", "week"])
@@ -344,7 +356,8 @@ def build_accuracy_page(log):
         f'<div class="chart-card" style="margin-bottom:28px;"><canvas id="{cid}" height="90"></canvas></div>'
         for cid in ["chart-accuracy", "chart-spread-mae", "chart-brier"]
     )
-    body = card("Accuracy Over Time", f"Weekly trend across {int(weekly['n'].sum())} graded games, us vs. the market",
+    body = card("Accuracy Over Time",
+                f"Weekly trend across {int(weekly['n'].sum())} live-picked games ({LIVE_TRACKING_START_SEASON} season onward), us vs. the market",
                 charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>')
     return page_shell("Accuracy", "accuracy", body)
 
