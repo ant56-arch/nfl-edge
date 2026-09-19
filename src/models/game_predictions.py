@@ -208,6 +208,8 @@ def predict_all_upcoming(use_current_form=True):
             pred["season"] = game["season"]
             pred["week"] = game["week"]
             pred["gameday"] = game["gameday"]
+            pred["gametime"] = game.get("gametime")
+            pred["weekday"] = game.get("weekday")
             predictions.append(pred)
 
     return pd.DataFrame(predictions), holdout

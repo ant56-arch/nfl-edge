@@ -113,6 +113,19 @@ def card_open(title=None, subtitle=None):
 def card_close():
     return "</td></tr></table>"
 
+def format_kickoff(weekday, gametime):
+    """'Thursday' + '20:20' -> 'Thu 8:20 PM'. Falls back to nothing if either
+    piece is missing rather than showing a half-formed label."""
+    if not weekday or pd.isna(weekday) or not gametime or pd.isna(gametime):
+        return ""
+    try:
+        hour, minute = (int(x) for x in str(gametime).split(":"))
+    except ValueError:
+        return ""
+    period = "AM" if hour < 12 else "PM"
+    hour_12 = hour % 12 or 12
+    return str(weekday)[:3] + " " + str(hour_12) + ":" + format(minute, "02d") + " " + period
+
 def build_games_table(games, comparison):
     if games.empty:
         return "<p style=\"color:" + TEXT_MUTED + "; font-family:" + FONT_DISPLAY + ";\">No upcoming games found.</p>"
@@ -122,12 +135,27 @@ def build_games_table(games, comparison):
         vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line", "vegas_home_win_prob"]]
         merged = merged.merge(vegas_cols, on=["home_team", "away_team"], how="left")
 
-    merged = merged.sort_values("favored_by", ascending=False).reset_index(drop=True)
+    # Kickoff order, not confidence order - "most confident pick" is
+    # interesting but not how anyone actually plans their Sunday.
+    sort_cols = [c for c in ["gameday", "gametime"] if c in merged.columns]
+    merged = merged.sort_values(sort_cols if sort_cols else "favored_by", ascending=True).reset_index(drop=True)
 
     rows = ""
+    last_day_seen = None
+    day_row_idx = 0
     for i, g in merged.iterrows():
         win_pct = g["home_win_prob"] if g["favored_team"] == g["home_team"] else g["away_win_prob"]
         has_vegas = pd.notna(g.get("vegas_home_favored_by"))
+        kickoff = format_kickoff(g.get("weekday"), g.get("gametime"))
+
+        game_day = g.get("gameday")
+        if pd.notna(game_day) and game_day != last_day_seen:
+            last_day_seen = game_day
+            day_row_idx = 0
+            day_label = str(g.get("weekday")) if pd.notna(g.get("weekday")) else str(game_day)
+            rows += ("<tr><td colspan=\"2\" style=\"padding:14px 10px 4px 10px; font-family:" + FONT_DISPLAY
+                     + "; font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:"
+                     + TEXT_FAINT + ";\">" + day_label + "</td></tr>")
 
         if has_vegas:
             vegas_favored_team = g["vegas_favored_team"]
@@ -142,7 +170,8 @@ def build_games_table(games, comparison):
         vegas_line_html = ('<span style="color:' + ACCENT_MARKET + ';">Vegas ' + vegas_line + '</span>') if vegas_line else ('<span style="color:' + TEXT_FAINT + ';">Vegas ' + DASH + '</span>')
         total_line = "O/U " + format(g['projected_total'], ".1f") + " <span style='color:" + TEXT_FAINT + ";'>(Vegas " + (vegas_total if vegas_total else DASH) + ")</span>"
 
-        row_bg = ACCENT_DANGER_TINT if disagree else (ROW_ALT_BG if i % 2 else CARD_BG)
+        row_bg = ACCENT_DANGER_TINT if disagree else (ROW_ALT_BG if day_row_idx % 2 else CARD_BG)
+        day_row_idx += 1
         flip_note = ('<div style="margin-top:4px;">' + pill("DIFFERENT PICK", ACCENT_DANGER, CARD_BG) + '</div>') if disagree else ""
         cell_style = "padding:12px 10px; background:" + row_bg + "; border-bottom:1px solid " + CARD_BORDER + ";"
 
@@ -157,7 +186,8 @@ def build_games_table(games, comparison):
             """ + flip_note + """
           </td>
           <td style=\"""" + cell_style + """ text-align:right;\">
-            <div style="font-family:""" + FONT_MONO + """; font-size:14px; color:""" + ACCENT_PRIMARY + """; font-weight:700;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</div>
+            """ + (('<div style="font-family:' + FONT_MONO + '; font-size:10px; color:' + TEXT_FAINT + ';">' + kickoff + '</div>') if kickoff else "") + """
+            <div style="font-family:""" + FONT_MONO + """; font-size:14px; color:""" + ACCENT_PRIMARY + """; font-weight:700; margin-top:2px;">""" + g['favored_team'] + " -" + format(g['favored_by'], ".1f") + """</div>
             <div style="font-family:""" + FONT_MONO + """; font-size:11px; margin-top:4px;">""" + vegas_line_html + """</div>
           </td>
         </tr>"""
