@@ -122,7 +122,8 @@ def page_shell(title, active_tab, body_html):
         f'<a href="{href}" class="{"active" if tab == active_tab else ""}">{label}</a>'
         for href, tab, label in tabs
     )
-    generated = datetime.now(timezone.utc).strftime("%b %d, %Y %H:%M UTC")
+    now = datetime.now(timezone.utc)
+    generated = now.strftime("%b %d, %Y %H:%M UTC")
     ver = asset_version()
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -140,6 +141,7 @@ def page_shell(title, active_tab, body_html):
 </head>
 <body>
 <div class="topbar"></div>
+<div class="hero-glow" aria-hidden="true"></div>
 <div class="wrap">
   <header class="masthead">
     <div class="masthead-row">
@@ -149,12 +151,28 @@ def page_shell(title, active_tab, body_html):
       </div>
       <div class="updated-chip">Updated {generated}</div>
     </div>
-    <nav class="tabs">{nav}</nav>
   </header>
+  <nav class="tabs">{nav}</nav>
   {body_html}
   <footer class="site-footer">
-    Our line blends a coefficients-fit EPA model with the live market line (weights validated on
-    held-out seasons). Vegas lines via DraftKings (the-odds-api.com) where available. Not betting advice.
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="footer-heading">The Model</div>
+        <p>A coefficients-fit EPA model blended with the live market line, weights validated on held-out seasons - not a gut feeling with a spreadsheet attached.</p>
+      </div>
+      <div class="footer-col">
+        <div class="footer-heading">Data &amp; Sources</div>
+        <p>Play-by-play and schedules via nflverse. Vegas lines via DraftKings, through the-odds-api.com, where available.</p>
+      </div>
+      <div class="footer-col">
+        <div class="footer-heading">Disclaimer</div>
+        <p>For entertainment and research only. Not betting advice - past accuracy does not guarantee future results.</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-brand">NFL <span>EDGE</span></span>
+      <span>&copy; {now.year} - rebuilt from real results every week.</span>
+    </div>
   </footer>
 </div>
 <script src="site.js?v={ver}"></script>
@@ -268,27 +286,35 @@ def build_track_record_section(summary):
     all_time = summary.get("all_time", {}).get("sharp")
     all_time_vegas = summary.get("all_time", {}).get("vegas")
 
-    hero = ""
-    if current:
-        hero = f"""<div class="hero-panel">
-          <div>
-            <div class="hero-label">{year} Season Straight-Up Record</div>
-            <div class="hero-number">{current['record']}</div>
-          </div>
-          {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "primary")}
-        </div>"""
-    else:
-        hero = f'<div class="empty-state">No {year} games graded yet.</div>'
+    if not current:
+        body = f'<div class="empty-state">No {year} games graded yet.</div>'
+        return card("Track Record", "Graded against real final scores, not vibes", body, "target")
 
-    tiles = ""
+    # A bento grid, not a uniform row of tiles: one big square carries the
+    # headline record, two wide bars carry the all-time records, and four
+    # small tiles fill in the supporting numbers - mixed tile sizes read as
+    # a hierarchy (this number matters most) instead of a flat stat wall.
+    hero_tile = f"""<div class="bento-tile bento-hero">
+      <div class="hero-label">{year} Season Straight-Up Record</div>
+      <div class="hero-number">{current['record']}</div>
+      {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "primary")}
+    </div>"""
+
+    wide_tiles = ""
     if all_time:
-        tiles += f"""<div class="stat-tile tile-primary"><div class="value accent">{all_time['record']}</div><div class="label">All-Time Record</div></div>
-        <div class="stat-tile tile-primary"><div class="value">&plusmn;{all_time['spread_mae']:.1f}</div><div class="label">Our Spread Error</div></div>"""
+        wide_tiles += f'<div class="bento-tile bento-wide tile-primary"><div class="label">All-Time Record</div><div class="value accent">{all_time["record"]}</div></div>'
     if all_time_vegas:
-        tiles += f"""<div class="stat-tile tile-market"><div class="value market-color">{all_time_vegas['record']}</div><div class="label">Vegas All-Time</div></div>
-        <div class="stat-tile tile-market"><div class="value">&plusmn;{all_time_vegas['spread_mae']:.1f}</div><div class="label">Vegas Spread Error</div></div>"""
+        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Vegas All-Time</div><div class="value market-color">{all_time_vegas["record"]}</div></div>'
 
-    body = hero + (f'<div class="stat-grid">{tiles}</div>' if tiles else "")
+    small_tiles = ""
+    if all_time:
+        small_tiles += f'<div class="bento-tile tile-primary"><div class="value">&plusmn;{all_time["spread_mae"]:.1f}</div><div class="label">Our Spread Error</div></div>'
+    if all_time_vegas:
+        small_tiles += f'<div class="bento-tile tile-market"><div class="value">&plusmn;{all_time_vegas["spread_mae"]:.1f}</div><div class="label">Vegas Spread Error</div></div>'
+    small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
+    <div class="bento-tile"><div class="value">{LIVE_TRACKING_START_SEASON}</div><div class="label">Live Tracking Since</div></div>"""
+
+    body = f'<div class="bento-grid">{hero_tile}{wide_tiles}{small_tiles}</div>'
     return card("Track Record", "Graded against real final scores, not vibes " + f"({summary['n_graded_games']} games all-time)", body, "target")
 
 def build_props_section(props):
@@ -415,6 +441,19 @@ def build_accuracy_page(log):
                 charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>', "trend")
     return page_shell("Accuracy", "accuracy", body)
 
+def build_404_page():
+    body = """<div class="card">
+      <div class="card-body error-body">
+        <div class="error-code mono">404</div>
+        """ + pill("PENALTY - LOSS OF PAGE", "danger") + """
+        <h2>This one got called back.</h2>
+        <p class="muted">The page you're looking for doesn't exist - it might have been moved, renamed,
+        or never existed to begin with.</p>
+        <a class="btn-primary" href="index.html">Back to This Week's Picks</a>
+      </div>
+    </div>"""
+    return page_shell("Page Not Found", None, body)
+
 def main():
     print("Loading data...")
     games, props, comparison, accuracy_summary, log = load_data()
@@ -425,6 +464,7 @@ def main():
         "index.html": build_index_page(games, props, comparison, accuracy_summary),
         "history.html": build_history_page(log),
         "accuracy.html": build_accuracy_page(log),
+        "404.html": build_404_page(),
     }
     for filename, html in pages.items():
         with open(os.path.join(DIST_DIR, filename), "w") as f:
