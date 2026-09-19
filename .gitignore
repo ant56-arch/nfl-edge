@@ -2,6 +2,7 @@ data/raw/
 data/historical_raw/
 data/processed/
 dist/
+node_modules/
 __pycache__/
 *.pyc
 .DS_Store
