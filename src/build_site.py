@@ -28,6 +28,28 @@ DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "dist")
 
 DASH = "—"
 
+# The 2024-2025 tracking history was backfilled after the fact (see
+# backfill_tracking.py's BACKFILL_SEASONS) by running a holdout-trained model
+# against seasons that already happened - useful as an archive of what the
+# system would have called, but not real picks made before kickoff. The
+# accuracy trend charts are meant to show actual live performance, so they
+# start at the first season the tracker ran for real.
+LIVE_TRACKING_START_SEASON = 2026
+
+# Minimal hand-drawn line icons (24x24, currentColor stroke) for card headers -
+# avoids pulling in an icon font/library for five glyphs.
+ICONS = {
+    "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+    "target": '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
+    "bars": '<line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="19" y1="20" x2="19" y2="14"/><line x1="3" y1="20.5" x2="21" y2="20.5"/>',
+    "clock": '<circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/>',
+    "trend": '<polyline points="4,17 10,11 14,15 20,7"/><polyline points="14,7 20,7 20,13"/>',
+}
+
+def icon(name):
+    return (f'<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{ICONS[name]}</svg>')
+
 def load_data():
     games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
     props = pd.read_csv(os.path.join(PROCESSED_DIR, "player_props.csv"))
@@ -70,6 +92,12 @@ def format_kickoff(weekday, gametime):
 def pill(text, style):
     return f'<span class="pill pill-{style}">{text}</span>'
 
+FAVICON = ('data:image/svg+xml,'
+    '%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E'
+    '%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%23111827%22/%3E'
+    '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23c2410c%22/%3E'
+    '%3C/svg%3E')
+
 def page_shell(title, active_tab, body_html):
     tabs = [("index.html", "index", "This Week"), ("history.html", "history", "History"), ("accuracy.html", "accuracy", "Accuracy")]
     nav = "".join(
@@ -83,15 +111,25 @@ def page_shell(title, active_tab, body_html):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} - NFL Edge</title>
+<meta name="description" content="Model-driven NFL spreads, totals and player props, validated against the closing Vegas line every week.">
+<link rel="icon" href="{FAVICON}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<div class="topbar"></div>
 <div class="wrap">
   <header class="masthead">
-    <div class="wordmark">NFL <span>EDGE</span></div>
-    <div class="accent-bar"></div>
-    <div class="subline">Updated {generated}</div>
+    <div class="masthead-row">
+      <div>
+        <div class="wordmark">NFL <span>EDGE</span></div>
+        <div class="tagline">Model-driven spreads, totals &amp; props - graded against the closing line every week.</div>
+      </div>
+      <div class="updated-chip">Updated {generated}</div>
+    </div>
     <nav class="tabs">{nav}</nav>
   </header>
   {body_html}
@@ -104,10 +142,11 @@ def page_shell(title, active_tab, body_html):
 </body>
 </html>"""
 
-def card(title, subtitle, body_html):
+def card(title, subtitle, body_html, icon_name=None):
     sub = f'<div class="subtitle">{subtitle}</div>' if subtitle else ""
+    badge = f'<div class="card-icon-badge">{icon(icon_name)}</div>' if icon_name else ""
     return f"""<div class="card">
-    <div class="card-header"><div class="bar"></div><div><h2>{title}</h2>{sub}</div></div>
+    <div class="card-header">{badge}<div><h2>{title}</h2>{sub}</div></div>
     <div class="card-body">{body_html}</div>
   </div>"""
 
@@ -172,7 +211,7 @@ def build_slate_table(games, comparison):
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <div class="muted" style="font-size:11px; margin-top:12px;">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. Click a column header to sort.</div>"""
+    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. Click a column header to sort.</div>"""
 
 def build_edge_cards(comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -187,24 +226,23 @@ def build_edge_cards(comparison, week_games, max_cards=3):
     cards = ""
     for _, g in top.iterrows():
         flip = g["model_favored_team"] != g["vegas_favored_team"]
-        border = "var(--danger)" if flip else "var(--primary)"
-        flip_line = f'<div style="margin-top:6px;">{pill("DIFFERENT TEAM FAVORED", "danger")}</div>' if flip else ""
-        cards += f"""<div style="border:1px solid var(--card-border); border-top:4px solid {border}; border-radius:10px; padding:14px; flex:1; min-width:180px;">
-          <div class="muted" style="font-size:12px; font-weight:600;">{g['away_team']} @ {g['home_team']}</div>
-          <div class="mono" style="font-size:17px; font-weight:700; color:var(--primary); margin-top:6px;">{g['model_favored_team']} -{g['model_favored_by']:.1f} <span class="muted" style="font-size:11px; font-weight:400;">our model</span></div>
-          <div class="mono market-color" style="font-size:13px; margin-top:2px;">{g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f} <span class="muted" style="font-size:11px;">vegas</span></div>
+        flip_line = f'<div class="edge-flip">{pill("DIFFERENT TEAM FAVORED", "danger")}</div>' if flip else ""
+        cards += f"""<div class="edge-card{' edge-card-flip' if flip else ''}">
+          <div class="edge-matchup">{g['away_team']} @ {g['home_team']}</div>
+          <div class="edge-our-line mono">{g['model_favored_team']} -{g['model_favored_by']:.1f} <span class="muted">our model</span></div>
+          <div class="edge-vegas-line mono market-color">{g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f} <span class="muted">vegas</span></div>
           {flip_line}
         </div>"""
 
-    return f"""<div style="margin-bottom:20px;">
-      <div class="muted" style="font-size:11px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:10px;">Notable Model vs. Market Gaps</div>
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">{cards}</div>
+    return f"""<div class="edge-section">
+      <div class="edge-kicker">Notable Model vs. Market Gaps</div>
+      <div class="edge-grid">{cards}</div>
     </div>"""
 
 def build_track_record_section(summary):
     if summary is None:
         return card("Track Record", "Graded against real final scores, not vibes",
-                     '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>')
+                     '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>', "target")
 
     year = summary.get("current_season_year", "")
     current = summary.get("current_season", {}).get("sharp")
@@ -213,21 +251,26 @@ def build_track_record_section(summary):
 
     hero = ""
     if current:
-        hero = f"""<div class="hero-label">{year} SEASON STRAIGHT-UP RECORD</div>
-        <div class="hero-number">{current['record']} <span class="muted" style="font-size:16px; font-weight:400;">({current['pick_accuracy']:.0%})</span></div>"""
+        hero = f"""<div class="hero-panel">
+          <div>
+            <div class="hero-label">{year} Season Straight-Up Record</div>
+            <div class="hero-number">{current['record']}</div>
+          </div>
+          {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "primary")}
+        </div>"""
     else:
         hero = f'<div class="empty-state">No {year} games graded yet.</div>'
 
     tiles = ""
     if all_time:
-        tiles += f"""<div class="stat-tile"><div class="value accent">{all_time['record']}</div><div class="label">All-Time Record</div></div>
-        <div class="stat-tile"><div class="value">&plusmn;{all_time['spread_mae']:.1f}</div><div class="label">Our Spread Error</div></div>"""
+        tiles += f"""<div class="stat-tile tile-primary"><div class="value accent">{all_time['record']}</div><div class="label">All-Time Record</div></div>
+        <div class="stat-tile tile-primary"><div class="value">&plusmn;{all_time['spread_mae']:.1f}</div><div class="label">Our Spread Error</div></div>"""
     if all_time_vegas:
-        tiles += f"""<div class="stat-tile"><div class="value market-color">{all_time_vegas['record']}</div><div class="label">Vegas All-Time</div></div>
-        <div class="stat-tile"><div class="value">&plusmn;{all_time_vegas['spread_mae']:.1f}</div><div class="label">Vegas Spread Error</div></div>"""
+        tiles += f"""<div class="stat-tile tile-market"><div class="value market-color">{all_time_vegas['record']}</div><div class="label">Vegas All-Time</div></div>
+        <div class="stat-tile tile-market"><div class="value">&plusmn;{all_time_vegas['spread_mae']:.1f}</div><div class="label">Vegas Spread Error</div></div>"""
 
     body = hero + (f'<div class="stat-grid">{tiles}</div>' if tiles else "")
-    return card("Track Record", "Graded against real final scores, not vibes " + f"({summary['n_graded_games']} games all-time)", body)
+    return card("Track Record", "Graded against real final scores, not vibes " + f"({summary['n_graded_games']} games all-time)", body, "target")
 
 def build_props_section(props):
     def table(stat_cols, title):
@@ -255,7 +298,7 @@ def build_props_section(props):
               <td data-key="player" data-value="{p['player_name']}"><b>{p['player_name']}</b>{tag}<div class="muted" style="font-size:11px;">{p['team']} vs {p['opponent']}</div>{badge}</td>
               {cells}
             </tr>"""
-        return f"""<h3 style="font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; margin:20px 0 10px 0;">{title}</h3>
+        return f"""<h3 class="props-heading">{title}</h3>
         <table class="data" data-sortable>
           <thead><tr><th data-sort-key="player">Player</th>{headers}</tr></thead>
           <tbody>{rows}</tbody>
@@ -267,7 +310,7 @@ def build_props_section(props):
                       "headers": ["Car", "Yds", "TDs"], "matchup_col": "matchup_mult_rush"}, "Rushing")
     receiving = table({"sort": "proj_rec_yards", "display": ["proj_targets", "proj_receptions", "proj_rec_yards", "proj_rec_tds"],
                         "headers": ["Tgt", "Rec", "Yds", "TDs"], "matchup_col": "matchup_mult_rec"}, "Receiving")
-    return card("Player Projections", "Top 20 per category by projected yards - click a column to sort", passing + rushing + receiving)
+    return card("Player Projections", "Top 20 per category by projected yards - click a column to sort", passing + rushing + receiving, "bars")
 
 def build_index_page(games, props, comparison, accuracy_summary):
     week_games = next_week_games(games)
@@ -281,13 +324,13 @@ def build_index_page(games, props, comparison, accuracy_summary):
     track_html = build_track_record_section(accuracy_summary)
     props_html = build_props_section(props)
 
-    body = edge_html + card(f"Slate - {week_label}", "Our line vs. the market, every game", slate_html) + track_html + props_html
+    body = edge_html + card(f"Slate - {week_label}", "Our line vs. the market, every game", slate_html, "calendar") + track_html + props_html
     return page_shell(week_label, "index", body)
 
 def build_history_page(log):
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
     if graded.empty:
-        body = card("History", "Every graded week, once there's one to show", '<div class="empty-state">No games graded yet.</div>')
+        body = card("History", "Every graded week, once there's one to show", '<div class="empty-state">No games graded yet.</div>', "clock")
         return page_shell("History", "history", body)
 
     graded = graded.sort_values(["season", "week"])
@@ -316,13 +359,17 @@ def build_history_page(log):
     history_json = json.dumps({"week_order": week_order, "weeks": weeks})
     body = card("History", "Every graded week - pick a week to see how we did",
                 f'<select id="week-select" class="week-picker"></select><div id="week-content" style="margin-top:16px;"></div>'
-                f'<script>const HISTORY_DATA = {history_json};</script>')
+                f'<script>const HISTORY_DATA = {history_json};</script>', "clock")
     return page_shell("History", "history", body)
 
 def build_accuracy_page(log):
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
+    if not graded.empty:
+        graded = graded[graded["season"] >= LIVE_TRACKING_START_SEASON]
     if graded.empty:
-        body = card("Accuracy Over Time", "Weekly trend, us vs. the market", '<div class="empty-state">No games graded yet.</div>')
+        body = card("Accuracy Over Time", "Weekly trend, us vs. the market",
+                     '<div class="empty-state">No live-tracked games graded yet - check back once the '
+                     f'{LIVE_TRACKING_START_SEASON} season kicks off.</div>', "trend")
         return page_shell("Accuracy", "accuracy", body)
 
     graded = graded.sort_values(["season", "week"])
@@ -344,8 +391,9 @@ def build_accuracy_page(log):
         f'<div class="chart-card" style="margin-bottom:28px;"><canvas id="{cid}" height="90"></canvas></div>'
         for cid in ["chart-accuracy", "chart-spread-mae", "chart-brier"]
     )
-    body = card("Accuracy Over Time", f"Weekly trend across {int(weekly['n'].sum())} graded games, us vs. the market",
-                charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>')
+    body = card("Accuracy Over Time",
+                f"Weekly trend across {int(weekly['n'].sum())} live-picked games ({LIVE_TRACKING_START_SEASON} season onward), us vs. the market",
+                charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>', "trend")
     return page_shell("Accuracy", "accuracy", body)
 
 def main():

@@ -72,6 +72,7 @@ initWeekPicker();
 // --- Trend charts (accuracy.html) ---
 function initCharts() {
   if (typeof ACCURACY_DATA === "undefined" || typeof Chart === "undefined") return;
+  Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const labels = ACCURACY_DATA.labels;
 
   function lineChart(canvasId, title, usSeries, vegasSeries, formatFn) {
