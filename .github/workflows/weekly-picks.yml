@@ -8,10 +8,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  generate-and-send-picks:
+  generate-and-publish-picks:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,13 +74,6 @@ jobs:
         id: track_results
         run: python src/track_results.py
 
-      - name: Send email
-        id: send_email
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-        run: python src/email_report.py
-
       - name: Commit tracking data
         id: commit_tracking
         if: always() && steps.track_results.outcome == 'success'
@@ -82,9 +84,18 @@ jobs:
           git diff --cached --quiet || git commit -m "Update prediction tracking [skip ci]"
           git push
 
-      - name: Alert on failure
-        if: failure()
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-        run: python src/alerts.py "Pipeline failed - check the Actions run for the specific step" "One or more steps failed during this run."
+      - name: Build site
+        id: build_site
+        run: python src/build_site.py
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -41,7 +41,7 @@ def load_data():
     return predictions, odds
 
 def next_week_only(predictions):
-    """Match email_report.py's logic: only compare the soonest upcoming week,
+    """Match build_site.py's logic: only compare the soonest upcoming week,
     not the entire season's worth of games."""
     if predictions.empty:
         return predictions
