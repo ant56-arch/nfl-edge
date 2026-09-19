@@ -80,7 +80,11 @@ def upsert_snapshot(log, snapshot):
     log = log.reindex(log.index.union(snapshot_indexed.index))
     for col in snapshot_indexed.columns:
         if col not in log.columns:
-            log[col] = np.nan
+            # Match the new column's dtype (e.g. game_type is a string column,
+            # not float) - a bare `np.nan` always creates a float64 column,
+            # and pandas 2.x raises rather than silently widening it back to
+            # object/string when we then assign real string values into it.
+            log[col] = pd.Series(index=log.index, dtype=snapshot_indexed[col].dtype)
         log.loc[snapshot_indexed.index, col] = snapshot_indexed[col]
     return log.reset_index()
 
