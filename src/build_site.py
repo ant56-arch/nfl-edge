@@ -511,7 +511,7 @@ def build_track_record_section(sport, summary, top25_summary=None):
         if all_time.get("ats_pushes") is not None:
             small_tiles += f'<div class="bento-tile"><div class="value">{all_time["ats_pushes"]}</div><div class="label">ATS Pushes</div></div>'
     small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
-    <div class="bento-tile"><div class="value">{since}</div><div class="label">Tracking Since</div></div>"""
+    <div class="bento-tile"><div class="value">{sport['live_tracking_start_season']}</div><div class="label">Tracking Since</div></div>"""
 
     note = (f"""<div class="table-footnote muted">These are Vegas's own closing-line results from {since} onward, not our
       model's. Our displayed pick defers fully to the market for the straight-up spread call - backtesting found
