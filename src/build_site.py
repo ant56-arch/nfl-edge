@@ -451,9 +451,9 @@ def build_track_record_section(sport, summary):
 
     wide_tiles = ""
     if all_time:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Straight-Up</div><div class="value market-color">{all_time["record"]}</div></div>'
+        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Straight-Up Since {since}</div><div class="value market-color">{all_time["record"]}</div></div>'
     if all_time and all_time.get("ats_accuracy") is not None:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Against the Spread</div><div class="value market-color">{all_time["ats_record"]}</div></div>'
+        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Against the Spread Since {since}</div><div class="value market-color">{all_time["ats_record"]}</div></div>'
 
     small_tiles = ""
     if all_time:
