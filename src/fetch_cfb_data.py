@@ -165,6 +165,16 @@ def fetch_advanced_stats(season):
         })
     return pd.DataFrame(rows)
 
+def fetch_rankings(season):
+    """Every week's poll rankings for a season - used to find the current AP
+    Top 25 (see backfill_cfb_top25.py). Returns [] rather than raising if a
+    season has no rankings yet (e.g. before the first poll of a new season)."""
+    try:
+        return _get("/rankings", {"year": season})
+    except requests.exceptions.HTTPError as e:
+        print(f"  Could not fetch rankings for {season}: {e}")
+        return []
+
 def main():
     if _headers() is None:
         print("CFBD_API_KEY not set - skipping college football data fetch. "
