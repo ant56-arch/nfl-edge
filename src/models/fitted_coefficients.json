@@ -1,5 +1,5 @@
 {
-  "fitted_at": "2026-09-16T17:08:05.664649+00:00",
+  "fitted_at": "2026-09-22T03:42:25.267560+00:00",
   "train_seasons": [
     2013,
     2014,
@@ -16,37 +16,37 @@
     2025,
     2026
   ],
-  "n_games_used": 3348,
+  "n_games_used": 3363,
   "coefficients": {
-    "epa_diff_coef": 52.855831848376745,
-    "third_down_weight": 10.086287979810448,
-    "redzone_weight": -1.4225615427944618,
-    "explosive_weight": 16.34512560718942,
-    "sack_weight": -19.76406506505512,
-    "home_field_advantage": 1.9535795089555936,
-    "margin_std_dev": 13.324675795739285,
-    "total_coef": 32.95889029800272,
-    "total_intercept": 46.10681444405385,
-    "total_std_dev": 13.669771231507848,
-    "n_games": 3348
+    "epa_diff_coef": 52.69516803751949,
+    "third_down_weight": 10.350903162420725,
+    "redzone_weight": -1.3729351216385606,
+    "explosive_weight": 15.301566316618292,
+    "sack_weight": -19.812218821589912,
+    "home_field_advantage": 1.935647227384894,
+    "margin_std_dev": 13.331388947896547,
+    "total_coef": 33.19814219906972,
+    "total_intercept": 46.09004092768772,
+    "total_std_dev": 13.672490966973456,
+    "n_games": 3363
   },
   "blend_weight_on_model_spread": 0.0,
-  "blend_weight_on_model_winprob": 0.2,
+  "blend_weight_on_model_winprob": 0.15,
   "blend_weight_on_model_total": 0.2,
   "holdout_validation": {
     "seasons": [
       2025,
       2026
     ],
-    "n_games": 301,
-    "model_only_spread_mae": 10.19955156292948,
-    "vegas_only_spread_mae": 9.755813953488373,
-    "blended_spread_mae": 9.755813953488373,
-    "model_only_total_mae": 10.813908204140112,
-    "vegas_only_total_mae": 10.490033222591363,
-    "blended_total_mae": 10.476225116433044,
-    "model_only_brier": 0.21795781874959186,
-    "vegas_only_brier": 0.21056481175424271,
-    "blended_brier": 0.21021198159595836
+    "n_games": 316,
+    "model_only_spread_mae": 10.303227286398759,
+    "vegas_only_spread_mae": 9.843354430379748,
+    "blended_spread_mae": 9.843354430379748,
+    "model_only_total_mae": 10.815489214196893,
+    "vegas_only_total_mae": 10.490506329113924,
+    "blended_total_mae": 10.476407010141246,
+    "model_only_brier": 0.21943121340210964,
+    "vegas_only_brier": 0.2119926801424647,
+    "blended_brier": 0.21165181547124845
   }
 }

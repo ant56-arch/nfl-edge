@@ -1,0 +1,42 @@
+{
+  "fitted_at": "2026-09-22T03:56:27.425211+00:00",
+  "train_seasons": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "n_games_used": 2125,
+  "coefficients": {
+    "ppa_diff_coef": 84.5539033834589,
+    "success_rate_weight": -6.028006292710701,
+    "explosiveness_weight": -5.642246770376946,
+    "home_field_advantage": 1.865550892768736,
+    "margin_std_dev": 16.94091456359948,
+    "total_coef": 41.93914919703904,
+    "total_intercept": 43.6359255140995,
+    "total_std_dev": 16.123182497635266,
+    "n_games": 2125
+  },
+  "blend_weight_on_model_spread": 0.05,
+  "blend_weight_on_model_winprob": 0.15,
+  "blend_weight_on_model_total": 0.2,
+  "holdout_validation": {
+    "seasons": [
+      2025,
+      2026
+    ],
+    "n_games": 573,
+    "model_only_spread_mae": 12.19150987799116,
+    "vegas_only_spread_mae": 11.270506108202444,
+    "blended_spread_mae": 11.269481530305965,
+    "model_only_total_mae": 13.059317992996624,
+    "vegas_only_total_mae": 12.3760907504363,
+    "blended_total_mae": 12.356751379811973,
+    "model_only_brier": 0.21481263806121376,
+    "vegas_only_brier": 0.1998770007703518,
+    "blended_brier": 0.1992204934879616
+  }
+}
