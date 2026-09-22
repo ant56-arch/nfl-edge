@@ -629,3 +629,42 @@ footer.site-footer {
   .footer-grid { grid-template-columns: 1fr; gap: 18px; }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
+
+/* Responsive tables: below a wide-enough viewport, a 5-6 column game/stat
+   table (matchup + pick + line + total + win% + result) simply can't fit
+   without horizontal scrolling. Below this breakpoint, stack each row into
+   its own card instead - hide the header row, and turn every cell after the
+   first (identity) one into a label/value pair via its data-label attribute,
+   so every column is still visible without scrolling sideways. Only tables
+   explicitly marked .responsive-stack get this treatment. */
+@media (max-width: 700px) {
+  table.responsive-stack thead { display: none; }
+  table.responsive-stack, table.responsive-stack tbody, table.responsive-stack tr { display: block; width: 100%; }
+  table.responsive-stack tbody tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--card-border);
+  }
+  table.responsive-stack tbody tr:last-child { border-bottom: none; }
+  table.responsive-stack tbody tr td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 2px;
+    border-bottom: none;
+    white-space: normal;
+  }
+  table.responsive-stack tbody tr td[data-label]::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  table.responsive-stack tbody tr td:first-child {
+    display: block;
+    padding: 2px 2px 8px 2px;
+  }
+}
