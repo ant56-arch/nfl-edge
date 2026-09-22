@@ -3,12 +3,17 @@ name: Backfill CFB Top 25
 # Seeds data/tracking/cfb_top25_summary.json with Vegas's own closing-line
 # record (straight-up and against the spread) for the current AP Top 25
 # teams' games since 2024 - see src/backfill_cfb_top25.py for the full
-# rationale. Manual only, same as backfill_tracking.py's NFL equivalent -
-# not part of the regular weekly cadence, but safe and cheap to re-run
-# occasionally to pick up newer results and any roster changes in the poll.
+# rationale. Runs weekly (Tuesday, half an hour after refit-model.yml's own
+# Tuesday run starts) so both the roster (a new AP poll drops every Tuesday
+# in-season) and the game results it covers stay current - the underlying
+# NFL backfill (backfill_tracking.py) is a true one-time seed since it
+# never needs new games added, but this one's source data changes every
+# week, so a fixed snapshot would go stale.
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "30 10 * * 2"  # every Tuesday, 30 minutes after refit-model.yml
 
 permissions:
   contents: write
