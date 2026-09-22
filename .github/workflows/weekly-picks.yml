@@ -138,7 +138,9 @@ jobs:
           git config user.name "nfl-edge-bot"
           git config user.email "actions@github.com"
           git add data/tracking/
-          git diff --cached --quiet || git commit -m "Update prediction tracking [skip ci]"
+          git diff --cached --quiet && exit 0
+          git commit -m "Update prediction tracking [skip ci]"
+          git pull --rebase origin main
           git push
 
       - name: Build site
