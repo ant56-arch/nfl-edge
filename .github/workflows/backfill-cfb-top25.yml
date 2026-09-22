@@ -1,0 +1,50 @@
+name: Backfill CFB Top 25
+
+# Seeds data/tracking/cfb_top25_summary.json with Vegas's own closing-line
+# record (straight-up and against the spread) for the current AP Top 25
+# teams' games since 2024 - see src/backfill_cfb_top25.py for the full
+# rationale. Manual only, same as backfill_tracking.py's NFL equivalent -
+# not part of the regular weekly cadence, but safe and cheap to re-run
+# occasionally to pick up newer results and any roster changes in the poll.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shares weekly-picks.yml's and refit-model.yml's concurrency group so this
+# never races either of them for a push to main - see refit-model.yml's
+# comment on the same setting for the full story of why that matters.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Backfill AP Top 25 Vegas record since 2024
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python src/backfill_cfb_top25.py
+
+      - name: Commit updated summary
+        run: |
+          git config user.name "nfl-edge-bot"
+          git config user.email "actions@github.com"
+          git add data/tracking/cfb_top25_summary.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Refresh AP Top 25 Vegas record backfill"
+          git pull --rebase origin main
+          git push

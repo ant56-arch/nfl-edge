@@ -63,6 +63,7 @@ SPORTS = {
         "vegas_comparison_csv": "vegas_comparison.csv",
         "predictions_log_csv": "predictions_log.csv",
         "accuracy_summary_json": "accuracy_summary.json",
+        "top25_summary_json": None,
         "live_tracking_start_season": 2026,
         "ats_since_year": 2024,
         "data_source_text": "Play-by-play and schedules via nflverse. Vegas lines via DraftKings, through the-odds-api.com, where available.",
@@ -80,6 +81,7 @@ SPORTS = {
         "vegas_comparison_csv": "cfb_vegas_comparison.csv",
         "predictions_log_csv": "cfb_predictions_log.csv",
         "accuracy_summary_json": "cfb_accuracy_summary.json",
+        "top25_summary_json": "cfb_top25_summary.json",
         "live_tracking_start_season": 2026,
         "ats_since_year": 2026,
         "data_source_text": "Team efficiency (PPA, success rate, explosiveness) via CollegeFootballData.com. Vegas lines via the-odds-api.com, where available. Covers SEC, Big Ten, Big 12, ACC and FBS independent teams.",
@@ -222,7 +224,14 @@ def load_data(sport):
     log_path = os.path.join(TRACKING_DIR, sport["predictions_log_csv"])
     log = pd.read_csv(log_path) if os.path.exists(log_path) else pd.DataFrame()
 
-    return games, props, comparison, accuracy_summary, log
+    top25_summary = None
+    if sport.get("top25_summary_json"):
+        top25_path = os.path.join(TRACKING_DIR, sport["top25_summary_json"])
+        if os.path.exists(top25_path):
+            with open(top25_path) as f:
+                top25_summary = json.load(f)
+
+    return games, props, comparison, accuracy_summary, log, top25_summary
 
 def next_week_games(games):
     if games.empty:
@@ -421,10 +430,37 @@ def build_edge_cards(sport, comparison, week_games, max_cards=3):
       <div class="edge-grid">{cards}</div>
     </div>"""
 
-def build_track_record_section(sport, summary):
+def build_top25_block(top25_summary):
+    """AP Top 25 teams' Vegas closing-line record since 2024 - a separate,
+    much larger historical sample than the CFB tracker's own live history
+    (which only starts whenever CFBD_API_KEY was added this season), seeded
+    by backfill_cfb_top25.py. Vegas's record, not ours, disclosed as such -
+    same framing as the main Track Record card."""
+    if not top25_summary:
+        return ""
+    since = top25_summary["since_year"]
+    su_tile = (f'<div class="bento-tile bento-wide tile-market"><div class="label">Straight-Up</div>'
+               f'<div class="value market-color">{top25_summary["record"]}</div></div>')
+    ats_tile = ""
+    if top25_summary.get("ats_accuracy") is not None:
+        ats_tile = (f'<div class="bento-tile bento-wide tile-market"><div class="label">Against the Spread</div>'
+                    f'<div class="value market-color">{top25_summary["ats_record"]}</div></div>')
+    small_tiles = (f'<div class="bento-tile"><div class="value">{top25_summary["n_games"]}</div><div class="label">Games</div></div>'
+                   f'<div class="bento-tile tile-market"><div class="value">&plusmn;{top25_summary["spread_mae"]:.1f}</div><div class="label">Spread Error</div></div>')
+    grid = f'<div class="bento-grid" style="margin-top:10px;">{su_tile}{ats_tile}{small_tiles}</div>'
+    heading = (f'<div class="edge-kicker" style="margin-top:26px;">AP Top 25 &mdash; Vegas Record, {since} to Now</div>')
+    poll_note = f" (as of the {top25_summary['poll_season']} week {top25_summary['poll_week']} poll)" if top25_summary.get("poll_week") else ""
+    note = (f"""<div class="table-footnote muted">Vegas's own closing-line record for today's AP Top 25 teams{poll_note},
+      {since} to now - not our model's, and a different (larger, longer) sample than the live tracking above.
+      Straight-up = the favored team won outright. Against the spread (ATS) = the favorite won by more than the
+      spread margin.</div>""")
+    return heading + grid + note
+
+def build_track_record_section(sport, summary, top25_summary=None):
+    top25_html = build_top25_block(top25_summary)
     if summary is None:
-        return card("Track Record", "Graded against real final scores, not vibes",
-                     '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>', "target")
+        body = '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>' + top25_html
+        return card("Track Record", "Graded against real final scores, not vibes", body, "target")
 
     year = summary.get("current_season_year", "")
     since = sport["ats_since_year"]
@@ -437,7 +473,7 @@ def build_track_record_section(sport, summary):
     all_time = summary.get("all_time", {}).get("vegas")
 
     if not current:
-        body = f'<div class="empty-state">No {year} games graded yet.</div>'
+        body = f'<div class="empty-state">No {year} games graded yet.</div>' + top25_html
         return card("Track Record", "Graded against real final scores, not vibes", body, "target")
 
     # A bento grid, not a uniform row of tiles: two hero tiles carry this
@@ -484,7 +520,7 @@ def build_track_record_section(sport, summary):
       the favorite won by more than the spread margin - the harder, more meaningful bar, since the spread exists
       specifically to make that a 50/50 proposition.</div>""")
 
-    body = f'<div class="bento-grid">{hero_su}{hero_ats}{wide_tiles}{small_tiles}</div>' + note
+    body = f'<div class="bento-grid">{hero_su}{hero_ats}{wide_tiles}{small_tiles}</div>' + note + top25_html
     return card("Track Record", f"Vegas's closing-line record, {since} to now ({summary['n_graded_games']} games)", body, "target")
 
 def build_players_page(sport, props):
@@ -542,7 +578,7 @@ def build_players_page(sport, props):
     card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click a column to sort", body, "user")
     return page_shell(sport, "Players", "players", card_html)
 
-def build_index_page(sport, games, props, comparison, accuracy_summary, log):
+def build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary=None):
     season = sport["live_tracking_start_season"]
     weeks = assemble_season_weeks(sport, games, log, comparison, season)
     this_week_key = current_week_key(weeks)
@@ -552,7 +588,7 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log):
     week_games_df = next_week_games(games)
     edge_html = build_edge_cards(sport, comparison, week_games_df) if comparison is not None else ""
     slate_html = render_week_table(this_week["games"] if this_week else [])
-    track_html = build_track_record_section(sport, accuracy_summary)
+    track_html = build_track_record_section(sport, accuracy_summary, top25_summary)
 
     subtitle = "Our pick vs. the market, every game this week - hit or miss once played. See the Teams tab for the full season."
     if not weeks and sport.get("no_games_note"):
@@ -796,10 +832,10 @@ def build_redirect_page():
 
 def build_sport_pages(sport):
     print(f"Loading {sport['wordmark']} data...")
-    games, props, comparison, accuracy_summary, log = load_data(sport)
+    games, props, comparison, accuracy_summary, log, top25_summary = load_data(sport)
 
     pages = {
-        "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log),
+        "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary),
         "teams.html": build_teams_page(sport, games, log, comparison),
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
