@@ -1,7 +1,7 @@
 {
   "n_graded_games": 585,
   "current_season_year": 2026,
-  "last_updated": "2026-09-22T02:34:50.499035+00:00",
+  "last_updated": "2026-09-22T02:36:58.279037+00:00",
   "all_time": {
     "model": {
       "wins": 377,
@@ -11,7 +11,12 @@
       "spread_mae": 10.2,
       "total_mae": 10.26,
       "brier_score": 0.2185,
-      "n_games": 585
+      "n_games": 585,
+      "ats_wins": 286,
+      "ats_losses": 299,
+      "ats_pushes": 0,
+      "ats_record": "286-299",
+      "ats_accuracy": 0.489
     },
     "sharp": {
       "wins": 400,
@@ -21,7 +26,12 @@
       "spread_mae": 9.71,
       "total_mae": 10.01,
       "brier_score": 0.2067,
-      "n_games": 585
+      "n_games": 585,
+      "ats_wins": 295,
+      "ats_losses": 285,
+      "ats_pushes": 5,
+      "ats_record": "295-285-5",
+      "ats_accuracy": 0.509
     },
     "vegas": {
       "wins": 400,
@@ -31,7 +41,12 @@
       "spread_mae": 9.71,
       "total_mae": 10.02,
       "brier_score": 0.2061,
-      "n_games": 585
+      "n_games": 585,
+      "ats_wins": 295,
+      "ats_losses": 285,
+      "ats_pushes": 5,
+      "ats_record": "295-285-5",
+      "ats_accuracy": 0.509
     }
   },
   "current_season": {
@@ -43,7 +58,12 @@
       "spread_mae": 12.31,
       "total_mae": 10.83,
       "brier_score": 0.2475,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 5,
+      "ats_losses": 10,
+      "ats_pushes": 0,
+      "ats_record": "5-10",
+      "ats_accuracy": 0.333
     },
     "sharp": {
       "wins": 11,
@@ -53,7 +73,12 @@
       "spread_mae": 10.53,
       "total_mae": 7.92,
       "brier_score": 0.223,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 9,
+      "ats_losses": 6,
+      "ats_pushes": 0,
+      "ats_record": "9-6",
+      "ats_accuracy": 0.6
     },
     "vegas": {
       "wins": 11,
@@ -63,7 +88,12 @@
       "spread_mae": 10.53,
       "total_mae": 7.3,
       "brier_score": 0.223,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 9,
+      "ats_losses": 6,
+      "ats_pushes": 0,
+      "ats_record": "9-6",
+      "ats_accuracy": 0.6
     }
   },
   "last_4_weeks": {
@@ -75,7 +105,12 @@
       "spread_mae": 12.31,
       "total_mae": 10.83,
       "brier_score": 0.2475,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 5,
+      "ats_losses": 10,
+      "ats_pushes": 0,
+      "ats_record": "5-10",
+      "ats_accuracy": 0.333
     },
     "sharp": {
       "wins": 11,
@@ -85,7 +120,12 @@
       "spread_mae": 10.53,
       "total_mae": 7.92,
       "brier_score": 0.223,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 9,
+      "ats_losses": 6,
+      "ats_pushes": 0,
+      "ats_record": "9-6",
+      "ats_accuracy": 0.6
     },
     "vegas": {
       "wins": 11,
@@ -95,7 +135,12 @@
       "spread_mae": 10.53,
       "total_mae": 7.3,
       "brier_score": 0.223,
-      "n_games": 15
+      "n_games": 15,
+      "ats_wins": 9,
+      "ats_losses": 6,
+      "ats_pushes": 0,
+      "ats_record": "9-6",
+      "ats_accuracy": 0.6
     }
   }
 }
