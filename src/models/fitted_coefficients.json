@@ -1,5 +1,5 @@
 {
-  "fitted_at": "2026-09-22T03:42:25.267560+00:00",
+  "fitted_at": "2026-09-22T14:24:42.145717+00:00",
   "train_seasons": [
     2013,
     2014,
@@ -16,19 +16,19 @@
     2025,
     2026
   ],
-  "n_games_used": 3363,
+  "n_games_used": 3364,
   "coefficients": {
-    "epa_diff_coef": 52.69516803751949,
-    "third_down_weight": 10.350903162420725,
-    "redzone_weight": -1.3729351216385606,
-    "explosive_weight": 15.301566316618292,
-    "sack_weight": -19.812218821589912,
-    "home_field_advantage": 1.935647227384894,
-    "margin_std_dev": 13.331388947896547,
-    "total_coef": 33.19814219906972,
-    "total_intercept": 46.09004092768772,
-    "total_std_dev": 13.672490966973456,
-    "n_games": 3363
+    "epa_diff_coef": 52.727384411244195,
+    "third_down_weight": 9.977221500700795,
+    "redzone_weight": -1.3555704124935009,
+    "explosive_weight": 15.73532242308353,
+    "sack_weight": -20.554672155200926,
+    "home_field_advantage": 1.9414203401631207,
+    "margin_std_dev": 13.333751343444732,
+    "total_coef": 33.102369974212614,
+    "total_intercept": 46.08415310565611,
+    "total_std_dev": 13.673412264698063,
+    "n_games": 3364
   },
   "blend_weight_on_model_spread": 0.0,
   "blend_weight_on_model_winprob": 0.15,
@@ -38,15 +38,15 @@
       2025,
       2026
     ],
-    "n_games": 316,
-    "model_only_spread_mae": 10.303227286398759,
-    "vegas_only_spread_mae": 9.843354430379748,
-    "blended_spread_mae": 9.843354430379748,
-    "model_only_total_mae": 10.815489214196893,
-    "vegas_only_total_mae": 10.490506329113924,
-    "blended_total_mae": 10.476407010141246,
-    "model_only_brier": 0.21943121340210964,
-    "vegas_only_brier": 0.2119926801424647,
-    "blended_brier": 0.21165181547124845
+    "n_games": 317,
+    "model_only_spread_mae": 10.334143300317557,
+    "vegas_only_spread_mae": 9.861198738170348,
+    "blended_spread_mae": 9.861198738170348,
+    "model_only_total_mae": 10.833328016985336,
+    "vegas_only_total_mae": 10.5,
+    "blended_total_mae": 10.487819221275268,
+    "model_only_brier": 0.21935958737022324,
+    "vegas_only_brier": 0.21157485032094053,
+    "blended_brier": 0.21128001973849883
   }
 }

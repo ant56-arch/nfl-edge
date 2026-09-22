@@ -1,5 +1,5 @@
 {
-  "fitted_at": "2026-09-22T03:56:27.425211+00:00",
+  "fitted_at": "2026-09-22T14:38:32.196002+00:00",
   "train_seasons": [
     2021,
     2022,
@@ -10,13 +10,13 @@
   ],
   "n_games_used": 2125,
   "coefficients": {
-    "ppa_diff_coef": 84.5539033834589,
-    "success_rate_weight": -6.028006292710701,
-    "explosiveness_weight": -5.642246770376946,
-    "home_field_advantage": 1.865550892768736,
+    "ppa_diff_coef": 84.55390338345887,
+    "success_rate_weight": -6.028006292710654,
+    "explosiveness_weight": -5.642246770376924,
+    "home_field_advantage": 1.8655508927687379,
     "margin_std_dev": 16.94091456359948,
-    "total_coef": 41.93914919703904,
-    "total_intercept": 43.6359255140995,
+    "total_coef": 41.93914919703903,
+    "total_intercept": 43.63592551409946,
     "total_std_dev": 16.123182497635266,
     "n_games": 2125
   },
@@ -29,7 +29,7 @@
       2026
     ],
     "n_games": 573,
-    "model_only_spread_mae": 12.19150987799116,
+    "model_only_spread_mae": 12.191509877991159,
     "vegas_only_spread_mae": 11.270506108202444,
     "blended_spread_mae": 11.269481530305965,
     "model_only_total_mae": 13.059317992996624,
