@@ -74,7 +74,7 @@ SPORTS = {
         "tagline": "Model-driven spreads &amp; totals for Power-conference college football - graded against the closing line every week.",
         "meta_description": "Model-driven college football spreads and totals for the Power conferences, validated against the closing Vegas line every week.",
         "team_csv": "cfb_teams.csv",
-        "team_abbr_col": "team", "team_color_col": "color", "team_color2_col": "alt_color", "team_logo_col": "logo",
+        "team_abbr_col": "team", "team_short_col": "abbreviation", "team_color_col": "color", "team_color2_col": "alt_color", "team_logo_col": "logo",
         "game_predictions_csv": "cfb_game_predictions.csv",
         "player_props_csv": None,
         "vegas_comparison_csv": "cfb_vegas_comparison.csv",
@@ -114,9 +114,12 @@ def team_info(sport):
         path = os.path.join(RAW_DIR, sport["team_csv"])
         if os.path.exists(path):
             df = pd.read_csv(path)
+            short_col = sport.get("team_short_col")
             for _, r in df.iterrows():
-                info[r[sport["team_abbr_col"]]] = {
+                key = r[sport["team_abbr_col"]]
+                info[key] = {
                     "color": r[sport["team_color_col"]], "color2": r[sport["team_color2_col"]], "logo": r[sport["team_logo_col"]],
+                    "short": r[short_col] if short_col else key,
                 }
         _TEAM_INFO[slug] = info
     return _TEAM_INFO[slug]
@@ -127,6 +130,14 @@ def team_color(sport, abbr):
 def team_logo(sport, abbr):
     return team_info(sport).get(abbr, {}).get("logo", "")
 
+def team_short(sport, name):
+    """Short display name for a team - the identifier itself for NFL (its
+    join key is already a 2-3 letter code), a real abbreviation for CFB
+    (whose join key is the full school name, e.g. 'Mississippi State' -
+    long full names in every stat table column made game tables overflow
+    even on desktop, not just mobile)."""
+    return team_info(sport).get(name, {}).get("short", name)
+
 def matchup_bar(sport, away, home, right_html):
     """A single wide cell replacing separate Matchup/Kickoff columns: both
     teams' logos, and a soft gradient background fading from the away team's
@@ -134,15 +145,16 @@ def matchup_bar(sport, away, home, right_html):
     `right_html` (kickoff time, or a HIT/MISS once graded) anchored right."""
     away_color, home_color = team_color(sport, away), team_color(sport, home)
     away_logo, home_logo = team_logo(sport, away), team_logo(sport, home)
+    away_label, home_label = team_short(sport, away), team_short(sport, home)
     away_img = f'<img class="team-logo" src="{away_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if away_logo else ""
     home_img = f'<img class="team-logo" src="{home_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if home_logo else ""
     gradient = f"linear-gradient(90deg, {away_color}26 0%, transparent 42%, transparent 58%, {home_color}26 100%)"
     return f"""<div class="matchup-bar">
       <div class="matchup-fade" style="background:{gradient};"></div>
       <div class="matchup-content">
-        <span class="matchup-team">{away_img}<span>{away}</span></span>
+        <span class="matchup-team">{away_img}<span>{away_label}</span></span>
         <span class="matchup-at">@</span>
-        <span class="matchup-team">{home_img}<span>{home}</span></span>
+        <span class="matchup-team">{home_img}<span>{home_label}</span></span>
         <span class="matchup-right muted mono">{right_html}</span>
       </div>
     </div>"""
@@ -381,7 +393,7 @@ def render_week_table(week_games):
     </table>
     <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. Click a column header to sort.</div>"""
 
-def build_edge_cards(comparison, week_games, max_cards=3):
+def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
         return ""
     week_comparison = comparison.merge(week_games[["home_team", "away_team"]], on=["home_team", "away_team"], how="inner")
@@ -395,10 +407,12 @@ def build_edge_cards(comparison, week_games, max_cards=3):
     for _, g in top.iterrows():
         flip = g["model_favored_team"] != g["vegas_favored_team"]
         flip_line = f'<div class="edge-flip">{pill("DIFFERENT TEAM FAVORED", "danger")}</div>' if flip else ""
+        away_label, home_label = team_short(sport, g["away_team"]), team_short(sport, g["home_team"])
+        model_label, vegas_label = team_short(sport, g["model_favored_team"]), team_short(sport, g["vegas_favored_team"])
         cards += f"""<div class="edge-card{' edge-card-flip' if flip else ''}">
-          <div class="edge-matchup">{g['away_team']} @ {g['home_team']}</div>
-          <div class="edge-our-line mono">{g['model_favored_team']} -{g['model_favored_by']:.1f} <span class="muted">our model</span></div>
-          <div class="edge-vegas-line mono market-color">{g['vegas_favored_team']} -{abs(g['vegas_home_favored_by']):.1f} <span class="muted">vegas</span></div>
+          <div class="edge-matchup">{away_label} @ {home_label}</div>
+          <div class="edge-our-line mono">{model_label} -{g['model_favored_by']:.1f} <span class="muted">our model</span></div>
+          <div class="edge-vegas-line mono market-color">{vegas_label} -{abs(g['vegas_home_favored_by']):.1f} <span class="muted">vegas</span></div>
           {flip_line}
         </div>"""
 
@@ -536,7 +550,7 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log):
     week_title = this_week["label"] if this_week else "Upcoming"
 
     week_games_df = next_week_games(games)
-    edge_html = build_edge_cards(comparison, week_games_df) if comparison is not None else ""
+    edge_html = build_edge_cards(sport, comparison, week_games_df) if comparison is not None else ""
     slate_html = render_week_table(this_week["games"] if this_week else [])
     track_html = build_track_record_section(sport, accuracy_summary)
 
@@ -588,9 +602,9 @@ def assemble_season_weeks(sport, games, log, comparison, season):
             bucket["games"].append({
                 "away_team": r["away_team"], "home_team": r["home_team"],
                 "matchup_html": matchup_bar(sport, r["away_team"], r["home_team"], f"{away_score}-{home_score}"),
-                "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
+                "favored_team": team_short(sport, pick["favored_team"]), "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
-                "vegas_favored_team": vegas_favored,
+                "vegas_favored_team": team_short(sport, vegas_favored) if vegas_favored else None,
                 "vegas_favored_by": round(float(abs(r["vegas_home_favored_by"])), 1) if has_vegas else None,
                 "vegas_total": round(float(r["vegas_total"]), 1) if pd.notna(r.get("vegas_total")) else None,
                 "graded": True, "home_score": home_score, "away_score": away_score,
@@ -617,9 +631,9 @@ def assemble_season_weeks(sport, games, log, comparison, season):
             bucket["games"].append({
                 "away_team": r["away_team"], "home_team": r["home_team"],
                 "matchup_html": matchup_bar(sport, r["away_team"], r["home_team"], kickoff or DASH),
-                "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
+                "favored_team": team_short(sport, pick["favored_team"]), "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
-                "vegas_favored_team": r["vegas_favored_team"] if has_vegas else None,
+                "vegas_favored_team": team_short(sport, r["vegas_favored_team"]) if has_vegas else None,
                 "vegas_favored_by": round(float(abs(r["vegas_home_favored_by"])), 1) if has_vegas else None,
                 "vegas_total": round(float(r["total_line"]), 1) if has_vegas and pd.notna(r.get("total_line")) else None,
                 "graded": False, "home_score": None, "away_score": None, "correct": None,
@@ -671,9 +685,9 @@ def build_history_page(sport, log):
                 if pd.isna(spread):
                     return DASH
                 team = r["home_team"] if spread > 0 else r["away_team"]
-                return f"{team} -{abs(spread):.1f}"
+                return f"{team_short(sport, team)} -{abs(spread):.1f}"
             games_list.append({
-                "away_team": r["away_team"], "home_team": r["home_team"],
+                "away_team": team_short(sport, r["away_team"]), "home_team": team_short(sport, r["home_team"]),
                 "away_score": int(r["away_score"]) if pd.notna(r.get("away_score")) else None,
                 "home_score": int(r["home_score"]) if pd.notna(r.get("home_score")) else None,
                 "model_pick": pick_str("model_spread"), "model_correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
