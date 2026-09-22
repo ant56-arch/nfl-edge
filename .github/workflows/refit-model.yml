@@ -20,6 +20,20 @@ on:
 permissions:
   contents: write
 
+# Shares weekly-picks.yml's concurrency group so the two workflows never run
+# their jobs at the same time - both commit-and-push to main, and this run
+# in particular can take 15-20+ minutes (fetching years of NFL play-by-play
+# plus several CFB seasons), long enough to overlap with a picks run that
+# starts partway through and pushes its own tracking-data commit first. Two
+# workflows racing to push from a main they each checked out earlier is
+# exactly a non-fast-forward rejection - see the "Commit updated
+# coefficients" step's git pull --rebase for the belt-and-suspenders half of
+# this fix (guards against a human pushing directly, or a future workflow
+# that isn't in this same concurrency group).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   refit:
     runs-on: ubuntu-latest
@@ -51,5 +65,7 @@ jobs:
           git config user.name "nfl-edge-bot"
           git config user.email "actions@github.com"
           git add src/models/fitted_coefficients.json src/models/fitted_props_coefficients.json src/models/fitted_cfb_coefficients.json
-          git diff --cached --quiet || git commit -m "Refit model coefficients against latest historical data"
+          git diff --cached --quiet && exit 0
+          git commit -m "Refit model coefficients against latest historical data"
+          git pull --rebase origin main
           git push
