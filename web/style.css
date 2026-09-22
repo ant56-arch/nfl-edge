@@ -375,6 +375,7 @@ table.data td:has(.matchup-bar) { padding: 6px 8px; white-space: normal; }
   border-top: 1px solid var(--card-border);
 }
 .bento-hero .hero-number { margin: 4px 0 0 0; }
+.bento-hero-full { grid-column: span 4; }
 .bento-hero .pill { font-size: 12px; padding: 8px 16px; }
 
 .bento-wide {
