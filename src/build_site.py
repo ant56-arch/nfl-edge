@@ -364,33 +364,51 @@ def build_track_record_section(summary):
         body = f'<div class="empty-state">No {year} games graded yet.</div>'
         return card("Track Record", "Graded against real final scores, not vibes", body, "target")
 
-    # A bento grid, not a uniform row of tiles: one big square carries the
-    # headline record, a wide bar carries the all-time record, and small
-    # tiles fill in the supporting numbers - mixed tile sizes read as a
-    # hierarchy (these two numbers matter most) instead of a flat stat wall.
-    hero_tile = f"""<div class="bento-tile bento-hero">
+    # A bento grid, not a uniform row of tiles: two hero tiles carry this
+    # season's headline records (straight-up and against the spread side by
+    # side, so they're easy to compare), two wide bars carry the same pair
+    # all-time, and small tiles fill in the supporting numbers underneath.
+    have_ats = current.get("ats_accuracy") is not None
+    hero_su_class = "bento-tile bento-hero" if have_ats else "bento-tile bento-hero bento-hero-full"
+    hero_su = f"""<div class="{hero_su_class}">
       <div>
-        <div class="hero-label">{year} Season Straight-Up Record</div>
+        <div class="hero-label">{year} Straight-Up</div>
         <div class="hero-number">{current['record']}</div>
       </div>
-      {pill(f"{current['pick_accuracy']:.0%} HIT RATE", "market")}
+      {pill(f"{current['pick_accuracy']:.0%}", "market")}
     </div>"""
+    hero_ats = ""
+    if have_ats:
+        hero_ats = f"""<div class="bento-tile bento-hero">
+          <div>
+            <div class="hero-label">{year} Against the Spread</div>
+            <div class="hero-number">{current['ats_record']}</div>
+          </div>
+          {pill(f"{current['ats_accuracy']:.0%}", "market")}
+        </div>"""
 
-    wide_tile = f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Record (2024-Now)</div><div class="value market-color">{all_time["record"]}</div></div>' if all_time else ""
+    wide_tiles = ""
+    if all_time:
+        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Straight-Up</div><div class="value market-color">{all_time["record"]}</div></div>'
+    if all_time and all_time.get("ats_accuracy") is not None:
+        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">All-Time Against the Spread</div><div class="value market-color">{all_time["ats_record"]}</div></div>'
 
     small_tiles = ""
     if all_time:
-        small_tiles += f'<div class="bento-tile tile-market"><div class="value">{all_time["pick_accuracy"]:.0%}</div><div class="label">All-Time Hit Rate</div></div>'
         small_tiles += f'<div class="bento-tile tile-market"><div class="value">&plusmn;{all_time["spread_mae"]:.1f}</div><div class="label">Spread Error</div></div>'
+        if all_time.get("ats_pushes") is not None:
+            small_tiles += f'<div class="bento-tile"><div class="value">{all_time["ats_pushes"]}</div><div class="label">ATS Pushes</div></div>'
     small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
     <div class="bento-tile"><div class="value">{LIVE_TRACKING_START_SEASON}</div><div class="label">Tracking Since</div></div>"""
 
     note = ("""<div class="table-footnote muted">These are Vegas's own closing-line results from 2024 onward, not our
       model's. Our displayed pick defers fully to the market for the straight-up spread call - backtesting found
       no edge in overriding Vegas there - so this is genuinely what "our pick" follows, shown plainly rather than
-      relabeled as an in-house number.</div>""")
+      relabeled as an in-house number. Straight-up = picked the game's actual winner. Against the spread (ATS) =
+      the favorite won by more than the spread margin - the harder, more meaningful bar, since the spread exists
+      specifically to make that a 50/50 proposition.</div>""")
 
-    body = f'<div class="bento-grid">{hero_tile}{wide_tile}{small_tiles}</div>' + note
+    body = f'<div class="bento-grid">{hero_su}{hero_ats}{wide_tiles}{small_tiles}</div>' + note
     return card("Track Record", f"Vegas's closing-line record, 2024 to now ({summary['n_graded_games']} games)", body, "target")
 
 def build_players_page(props):

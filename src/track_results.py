@@ -105,11 +105,26 @@ def grade_completed_games(log):
         ("sharp", "sharp_spread", "sharp_total", "sharp_home_win_prob"),
         ("vegas", "vegas_home_favored_by", "vegas_total", "vegas_home_win_prob"),
     ]:
+        # Straight-up: did the favored team win the game outright?
         picked_home_won = (log[spread_col] > 0) == (log["actual_margin"] > 0)
         log.loc[graded, f"{label}_correct_pick"] = picked_home_won[graded].astype(float)
         log.loc[graded, f"{label}_spread_error"] = (log[spread_col] - log["actual_margin"]).abs()[graded]
         log.loc[graded, f"{label}_total_error"] = (log[total_col] - log["actual_total"]).abs()[graded]
         log.loc[graded, f"{label}_brier"] = ((log[wp_col] - home_won) ** 2)[graded]
+
+        # Against the spread: did the favored team win by MORE than the
+        # spread margin? A separate question from straight-up - a 10-point
+        # favorite that wins by 3 is a correct straight-up pick and an ATS
+        # loss. cover_margin > 0 means the home team beat the line, < 0 means
+        # the away team did, == 0 is a push (excluded from the win/loss count,
+        # tracked separately - the standard way ATS records are reported).
+        cover_margin = log["actual_margin"] - log[spread_col]
+        push = cover_margin == 0
+        home_covered = cover_margin > 0
+        picked_covered = pd.Series(np.where(log[spread_col] >= 0, home_covered, ~home_covered), index=log.index)
+        log.loc[graded, f"{label}_ats_push"] = push[graded]
+        decided = graded & ~push
+        log.loc[decided, f"{label}_ats_correct"] = picked_covered[decided].astype(float)
 
     return log
 
@@ -151,6 +166,18 @@ def summarize(log):
         for label in ["model", "sharp", "vegas"]:
             wins = int(window_df[f"{label}_correct_pick"].sum())
             losses = int(len(window_df)) - wins
+
+            # Against the spread: pushes are decided-neither-way, so they
+            # come out of the win/loss denominator (the standard way an ATS
+            # record is reported, e.g. "9-6-1") rather than counting as a loss.
+            ats_col = f"{label}_ats_correct"
+            push_col = f"{label}_ats_push"
+            ats_decided = window_df[ats_col].notna() if ats_col in window_df.columns else pd.Series(False, index=window_df.index)
+            ats_wins = int(window_df.loc[ats_decided, ats_col].sum())
+            ats_losses = int(ats_decided.sum()) - ats_wins
+            ats_pushes = int(window_df[push_col].sum()) if push_col in window_df.columns else 0
+            ats_record = f"{ats_wins}-{ats_losses}" + (f"-{ats_pushes}" if ats_pushes else "")
+
             window_summary[label] = {
                 "wins": wins,
                 "losses": losses,
@@ -160,6 +187,11 @@ def summarize(log):
                 "total_mae": round(float(window_df[f"{label}_total_error"].mean()), 2),
                 "brier_score": round(float(window_df[f"{label}_brier"].mean()), 4),
                 "n_games": int(len(window_df)),
+                "ats_wins": ats_wins,
+                "ats_losses": ats_losses,
+                "ats_pushes": ats_pushes,
+                "ats_record": ats_record,
+                "ats_accuracy": round(ats_wins / (ats_wins + ats_losses), 3) if (ats_wins + ats_losses) > 0 else None,
             }
         summary[window_name] = window_summary
     return summary
@@ -191,7 +223,8 @@ def main():
             for label in ["model", "sharp", "vegas"]:
                 s = current.get(label, {})
                 if s:
-                    print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | "
+                    ats = f"{s['ats_record']} ({s['ats_accuracy']:.1%}) ATS" if s["ats_accuracy"] is not None else "no ATS decisions yet"
+                    print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | {ats} | "
                           f"spread MAE {s['spread_mae']:.2f} | total MAE {s['total_mae']:.2f} | Brier {s['brier_score']:.4f}")
         else:
             print(f"\nNo {year} games graded yet.")
@@ -199,7 +232,8 @@ def main():
         for label in ["model", "sharp", "vegas"]:
             s = all_time.get(label, {})
             if s:
-                print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%})")
+                ats = f"{s['ats_record']} ({s['ats_accuracy']:.1%}) ATS" if s["ats_accuracy"] is not None else "no ATS decisions yet"
+                print(f"  {label:>6}: {s['record']} ({s['pick_accuracy']:.1%}) straight-up | {ats}")
 
     print(f"\nSaved tracking log to {LOG_PATH} and summary to {SUMMARY_PATH}")
 
