@@ -1,101 +1,101 @@
 {
-  "n_graded_games": 571,
+  "n_graded_games": 585,
   "current_season_year": 2026,
-  "last_updated": "2026-09-20T18:28:42.920139+00:00",
+  "last_updated": "2026-09-22T01:37:00.026718+00:00",
   "all_time": {
     "model": {
-      "wins": 370,
-      "losses": 201,
-      "record": "370-201",
-      "pick_accuracy": 0.648,
-      "spread_mae": 10.14,
-      "total_mae": 10.27,
-      "brier_score": 0.2175,
-      "n_games": 571
+      "wins": 377,
+      "losses": 208,
+      "record": "377-208",
+      "pick_accuracy": 0.644,
+      "spread_mae": 10.2,
+      "total_mae": 10.26,
+      "brier_score": 0.2185,
+      "n_games": 585
     },
     "sharp": {
-      "wins": 390,
-      "losses": 181,
-      "record": "390-181",
-      "pick_accuracy": 0.683,
-      "spread_mae": 9.68,
-      "total_mae": 10.08,
-      "brier_score": 0.206,
-      "n_games": 571
+      "wins": 400,
+      "losses": 185,
+      "record": "400-185",
+      "pick_accuracy": 0.684,
+      "spread_mae": 9.71,
+      "total_mae": 10.01,
+      "brier_score": 0.2067,
+      "n_games": 585
     },
     "vegas": {
-      "wins": 390,
-      "losses": 181,
-      "record": "390-181",
-      "pick_accuracy": 0.683,
-      "spread_mae": 9.68,
-      "total_mae": 10.11,
-      "brier_score": 0.2055,
-      "n_games": 571
+      "wins": 400,
+      "losses": 185,
+      "record": "400-185",
+      "pick_accuracy": 0.684,
+      "spread_mae": 9.71,
+      "total_mae": 10.02,
+      "brier_score": 0.2061,
+      "n_games": 585
     }
   },
   "current_season": {
     "model": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 3.1,
-      "total_mae": 22.6,
-      "brier_score": 0.0918,
-      "n_games": 1
+      "wins": 8,
+      "losses": 7,
+      "record": "8-7",
+      "pick_accuracy": 0.533,
+      "spread_mae": 12.31,
+      "total_mae": 10.83,
+      "brier_score": 0.2475,
+      "n_games": 15
     },
     "sharp": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 5.5,
-      "total_mae": 18.5,
-      "brier_score": 0.103,
-      "n_games": 1
+      "wins": 11,
+      "losses": 4,
+      "record": "11-4",
+      "pick_accuracy": 0.733,
+      "spread_mae": 10.53,
+      "total_mae": 7.92,
+      "brier_score": 0.223,
+      "n_games": 15
     },
     "vegas": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 5.5,
-      "total_mae": 17.5,
-      "brier_score": 0.1056,
-      "n_games": 1
+      "wins": 11,
+      "losses": 4,
+      "record": "11-4",
+      "pick_accuracy": 0.733,
+      "spread_mae": 10.53,
+      "total_mae": 7.3,
+      "brier_score": 0.223,
+      "n_games": 15
     }
   },
   "last_4_weeks": {
     "model": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 3.1,
-      "total_mae": 22.6,
-      "brier_score": 0.0918,
-      "n_games": 1
+      "wins": 8,
+      "losses": 7,
+      "record": "8-7",
+      "pick_accuracy": 0.533,
+      "spread_mae": 12.31,
+      "total_mae": 10.83,
+      "brier_score": 0.2475,
+      "n_games": 15
     },
     "sharp": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 5.5,
-      "total_mae": 18.5,
-      "brier_score": 0.103,
-      "n_games": 1
+      "wins": 11,
+      "losses": 4,
+      "record": "11-4",
+      "pick_accuracy": 0.733,
+      "spread_mae": 10.53,
+      "total_mae": 7.92,
+      "brier_score": 0.223,
+      "n_games": 15
     },
     "vegas": {
-      "wins": 1,
-      "losses": 0,
-      "record": "1-0",
-      "pick_accuracy": 1.0,
-      "spread_mae": 5.5,
-      "total_mae": 17.5,
-      "brier_score": 0.1056,
-      "n_games": 1
+      "wins": 11,
+      "losses": 4,
+      "record": "11-4",
+      "pick_accuracy": 0.733,
+      "spread_mae": 10.53,
+      "total_mae": 7.3,
+      "brier_score": 0.223,
+      "n_games": 15
     }
   }
 }
