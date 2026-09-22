@@ -96,6 +96,17 @@ def grade_completed_games(log):
     log = log.merge(results, on=KEY_COLS, how="left")
 
     graded = log["home_score"].notna()
+    if not graded.any():
+        # Nothing graded yet - bail out rather than let the loop below run
+        # its .loc[graded, ...] assignments against an all-False mask.
+        # Doesn't happen in practice for the NFL log (the 2024-2025 backfill
+        # means graded is never empty), but the CFB tracker hit this exact
+        # case for real: pandas' empty-selection assignment into a column
+        # reloaded from CSV with a different dtype than the fresh in-memory
+        # value can raise (TypeError: Invalid value '[]' for dtype ...) even
+        # though logically nothing needs to change, since it goes through the
+        # same dtype-compatibility check as a real assignment.
+        return log
     log.loc[graded, "actual_margin"] = log.loc[graded, "home_score"] - log.loc[graded, "away_score"]
     log.loc[graded, "actual_total"] = log.loc[graded, "home_score"] + log.loc[graded, "away_score"]
     home_won = (log["actual_margin"] > 0).astype(float)
@@ -124,7 +135,8 @@ def grade_completed_games(log):
         picked_covered = pd.Series(np.where(log[spread_col] >= 0, home_covered, ~home_covered), index=log.index)
         log.loc[graded, f"{label}_ats_push"] = push[graded]
         decided = graded & ~push
-        log.loc[decided, f"{label}_ats_correct"] = picked_covered[decided].astype(float)
+        if decided.any():
+            log.loc[decided, f"{label}_ats_correct"] = picked_covered[decided].astype(float)
 
     return log
 
