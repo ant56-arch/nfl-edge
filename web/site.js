@@ -143,21 +143,23 @@ function initCharts() {
       data: {
         labels,
         datasets: [
-          { label: "Us", data: usSeries, borderColor: "#c2410c", backgroundColor: "#c2410c", pointRadius: 3, borderWidth: 2, tension: 0.15 },
-          { label: "Vegas", data: vegasSeries, borderColor: "#0891b2", backgroundColor: "#0891b2", pointRadius: 3, borderWidth: 2, tension: 0.15 },
+          { label: "Us", data: usSeries, borderColor: "#ff6a1a", backgroundColor: "#ff6a1a", pointRadius: 3, borderWidth: 2, tension: 0.15 },
+          { label: "Vegas", data: vegasSeries, borderColor: "#22d3ee", backgroundColor: "#22d3ee", pointRadius: 3, borderWidth: 2, tension: 0.15 },
         ],
       },
       options: {
         plugins: {
-          title: { display: true, text: title, font: { size: 13, weight: "bold" }, color: "#111827" },
-          legend: { display: true, position: "top", labels: { color: "#111827", font: { size: 12 } } },
+          title: { display: true, text: title, font: { size: 13, weight: "bold" }, color: "#f5f6f8" },
+          legend: { display: true, position: "top", labels: { color: "#f5f6f8", font: { size: 12 } } },
           tooltip: {
+            backgroundColor: "#1b1e27", borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
+            titleColor: "#f5f6f8", bodyColor: "#98a1b0",
             callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatFn(ctx.parsed.y)}` },
           },
         },
         scales: {
-          y: { ticks: { color: "#6b7280" }, grid: { color: "#e2e6ed" } },
-          x: { ticks: { color: "#6b7280" }, grid: { display: false } },
+          y: { ticks: { color: "#98a1b0" }, grid: { color: "rgba(255,255,255,0.06)" } },
+          x: { ticks: { color: "#98a1b0" }, grid: { display: false } },
         },
       },
     });
