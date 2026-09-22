@@ -65,13 +65,13 @@ function initHistoryPicker() {
     week.games.forEach(g => {
       rows += `<tr class="${g.model_correct === false ? "row-flag" : ""}">
         <td>${g.away_team} @ ${g.home_team}<div class="faint" style="font-size:11px;">Final: ${g.away_score}-${g.home_score}</div></td>
-        <td class="num mono">${g.model_pick}</td>
-        <td class="num mono">${g.model_correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>"}</td>
-        <td class="num mono">${g.vegas_pick}</td>
-        <td class="num mono">${g.vegas_correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>"}</td>
+        <td class="num mono" data-label="Model Pick">${g.model_pick}</td>
+        <td class="num mono" data-label="Result">${g.model_correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>"}</td>
+        <td class="num mono" data-label="Vegas Pick">${g.vegas_pick}</td>
+        <td class="num mono" data-label="Result">${g.vegas_correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>"}</td>
       </tr>`;
     });
-    return `<table class="data">
+    return `<table class="data responsive-stack">
         <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Result</th><th class="num">Vegas Pick</th><th class="num">Result</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
@@ -96,14 +96,14 @@ function initTeamsPicker() {
       }
       rows += `<tr class="${g.graded && g.correct === false ? "row-flag" : ""}">
         <td>${g.matchup_html}</td>
-        <td class="num mono accent">${pick}</td>
-        <td class="num mono market-color">${vegas}</td>
-        <td class="num mono">${g.total.toFixed(1)}</td>
-        <td class="num mono">${(g.win_pct * 100).toFixed(0)}%</td>
-        <td class="num mono">${resultCell}</td>
+        <td class="num mono accent" data-label="Model Pick">${pick}</td>
+        <td class="num mono market-color" data-label="Vegas">${vegas}</td>
+        <td class="num mono" data-label="Total">${g.total.toFixed(1)}</td>
+        <td class="num mono" data-label="Win%">${(g.win_pct * 100).toFixed(0)}%</td>
+        <td class="num mono" data-label="Result">${resultCell}</td>
       </tr>`;
     });
-    return `<table class="data">
+    return `<table class="data responsive-stack">
         <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Vegas</th><th class="num">Total</th><th class="num">Win%</th><th class="num">Result</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>

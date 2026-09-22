@@ -361,14 +361,14 @@ def render_week_table(week_games):
 
         rows += f"""<tr class="{flag.strip()}">
           <td data-key="matchup" data-value="{matchup_sort_value}">{g['matchup_html']}{flip_note}</td>
-          <td data-key="ourline" data-value="{g['favored_by']:.2f}" class="num mono accent">{our_line}</td>
-          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" class="num mono">{vegas_html}</td>
-          <td data-key="total" data-value="{g['total']:.2f}" class="num mono">{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</td>
-          <td data-key="winpct" data-value="{g['win_pct']:.3f}" class="num mono">{g['win_pct']:.0%}</td>
-          <td class="num mono">{result_html}</td>
+          <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our Pick" class="num mono accent">{our_line}</td>
+          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num mono">{vegas_html}</td>
+          <td data-key="total" data-value="{g['total']:.2f}" data-label="Total (us / vegas)" class="num mono">{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</td>
+          <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num mono">{g['win_pct']:.0%}</td>
+          <td data-label="Result" class="num mono">{result_html}</td>
         </tr>"""
 
-    return f"""<table class="data" data-sortable>
+    return f"""<table class="data responsive-stack" data-sortable>
       <thead><tr>
         <th data-sort-key="matchup">Matchup</th>
         <th data-sort-key="ourline" class="num">Our Pick</th>
@@ -494,7 +494,8 @@ def build_players_page(sport, props):
                     badge = " " + pill("SOFT MATCHUP", "positive")
                 elif mult <= 0.92:
                     badge = " " + pill("TOUGH MATCHUP", "danger")
-            cells = "".join(f'<td data-key="{c}" data-value="{p[c]}" class="num mono">{p[c]}</td>' for c in stat_cols["display"])
+            cells = "".join(f'<td data-key="{c}" data-value="{p[c]}" data-label="{h}" class="num mono">{p[c]}</td>'
+                            for c, h in zip(stat_cols["display"], stat_cols["headers"]))
             border = f"border-left:4px solid {team_color(sport, p['team'])};"
             rows += f"""<tr>
               <td data-key="player" data-value="{p['player_name']}" style="{border}"><b>{p['player_name']}</b>{tag}<div class="muted" style="font-size:11px;">{p['team']} vs {p['opponent']}</div>{badge}</td>
@@ -502,7 +503,7 @@ def build_players_page(sport, props):
             </tr>"""
         hidden = "" if active else " hidden"
         return f"""<div class="cat-panel" id="cat-{cat_id}"{hidden}>
-        <table class="data" data-sortable>
+        <table class="data responsive-stack" data-sortable>
           <thead><tr><th data-sort-key="player">Player</th>{headers}</tr></thead>
           <tbody>{rows}</tbody>
         </table></div>"""
