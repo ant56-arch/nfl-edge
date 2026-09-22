@@ -1,17 +1,21 @@
 name: Refit Model Coefficients
 
-# Re-fits every coefficient in game_predictions.py AND props_predictions.py
-# against real historical outcomes (see src/fit_model.py and
-# src/fit_props_model.py) and validates each fit on held-out seasons. This is
-# intentionally separate from weekly-picks.yml: it downloads a decade-plus of
-# play-by-play, which is slow and unnecessary to redo twice a week. Run it
-# monthly (enough to pick up each season's growing sample as it progresses)
-# and any time the feature set or fitting method changes.
+# Re-fits every coefficient in game_predictions.py, props_predictions.py, and
+# (when CFBD_API_KEY is set) cfb_game_predictions.py against real historical
+# outcomes, and validates each fit on held-out seasons. This is intentionally
+# separate from weekly-picks.yml: it downloads a decade-plus of play-by-play,
+# which is slow and unnecessary to redo on every picks run.
+#
+# Runs weekly (Tuesday, after Monday Night Football has finished and results
+# are final) rather than monthly, so each week's actual outcomes get folded
+# into the model that predicts the following week - the previous monthly
+# cadence meant most of a season could pass before a week's results actually
+# influenced the coefficients being used to pick future games.
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 10 1 * *"  # 1st of each month, 6am ET
+    - cron: "0 10 * * 2"  # every Tuesday, 6am ET (5am during EST)
 
 permissions:
   contents: write
@@ -36,10 +40,16 @@ jobs:
       - name: Fit + validate props model coefficients
         run: python src/fit_props_model.py
 
+      - name: Fit + validate CFB model coefficients
+        continue-on-error: true
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python src/fit_cfb_model.py
+
       - name: Commit updated coefficients
         run: |
           git config user.name "nfl-edge-bot"
           git config user.email "actions@github.com"
-          git add src/models/fitted_coefficients.json src/models/fitted_props_coefficients.json
+          git add src/models/fitted_coefficients.json src/models/fitted_props_coefficients.json src/models/fitted_cfb_coefficients.json
           git diff --cached --quiet || git commit -m "Refit model coefficients against latest historical data"
           git push

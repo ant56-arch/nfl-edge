@@ -1,18 +1,26 @@
 """
 build_site.py
-Generates the static NFL Edge website (dist/) from the same processed data
-the email used to read - the email is retired; this is the sole output now.
+Generates the static Edge website (dist/) from the same processed data the
+email used to read - the email is retired; this is the sole output now.
 
-Pages:
+Two sports, same page structure, kept in separate subdirectories so each is
+independently browsable and linkable:
+  dist/nfl/...  - NFL Edge (unchanged behavior/content from before this
+                  became multi-sport)
+  dist/cfb/...  - College Football Edge, Power-conference + independent FBS
+                  teams only, same modeling approach (see fit_cfb_model.py)
+  dist/index.html - a plain redirect to nfl/index.html so old bookmarks/links
+                  to the site root keep working with NFL as the default sport
+
+Pages per sport (see SPORTS below for which apply to which sport):
   index.html    - Home: notable model-vs-market gaps, track record, and this
                   week's slate only (kept short - see teams.html for the rest
                   of the season)
-  teams.html    - every 2026 game, week 1 through the postseason, browsable
-                  via a dropdown - past weeks graded, future weeks straight
-                  from game_predictions.csv (which already forecasts the
-                  whole season, not just the imminent week)
-  players.html  - player projections by category (Passing/Rushing/Receiving),
-                  switchable via in-page tabs so it isn't one long scroll
+  teams.html    - every game this season, week 1 through the postseason,
+                  browsable via a dropdown - past weeks graded, future weeks
+                  straight from the season's game_predictions.csv
+  players.html  - player projections by category (Passing/Rushing/Receiving)
+                  - NFL only, no college football player props in this pass
   history.html  - every graded week across all seasons (backfill included),
                   browsable via a dropdown (client-side, no per-week routing
                   needed for a site this size)
@@ -38,16 +46,49 @@ DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "dist")
 
 DASH = "—"
 
-# The 2024-2025 tracking history was backfilled after the fact (see
-# backfill_tracking.py's BACKFILL_SEASONS) by running a holdout-trained model
-# against seasons that already happened - useful as an archive of what the
-# system would have called, but not real picks made before kickoff. The
-# accuracy trend charts are meant to show actual live performance, so they
-# start at the first season the tracker ran for real.
-LIVE_TRACKING_START_SEASON = 2026
+# Per-sport configuration - every page-building function below takes a
+# `sport` dict as its first argument and reads file paths / display text
+# from it, instead of the module-level constants this file used before it
+# covered more than one sport.
+SPORTS = {
+    "nfl": {
+        "slug": "nfl",
+        "wordmark": "NFL",
+        "tagline": "Model-driven spreads, totals &amp; props - graded against the closing line every week.",
+        "meta_description": "Model-driven NFL spreads, totals and player props, validated against the closing Vegas line every week.",
+        "team_csv": "teams.csv",
+        "team_abbr_col": "team_abbr", "team_color_col": "team_color", "team_color2_col": "team_color2", "team_logo_col": "team_logo_espn",
+        "game_predictions_csv": "game_predictions.csv",
+        "player_props_csv": "player_props.csv",
+        "vegas_comparison_csv": "vegas_comparison.csv",
+        "predictions_log_csv": "predictions_log.csv",
+        "accuracy_summary_json": "accuracy_summary.json",
+        "live_tracking_start_season": 2026,
+        "ats_since_year": 2024,
+        "data_source_text": "Play-by-play and schedules via nflverse. Vegas lines via DraftKings, through the-odds-api.com, where available.",
+        "no_games_note": "",
+    },
+    "cfb": {
+        "slug": "cfb",
+        "wordmark": "CFB",
+        "tagline": "Model-driven spreads &amp; totals for Power-conference college football - graded against the closing line every week.",
+        "meta_description": "Model-driven college football spreads and totals for the Power conferences, validated against the closing Vegas line every week.",
+        "team_csv": "cfb_teams.csv",
+        "team_abbr_col": "team", "team_color_col": "color", "team_color2_col": "alt_color", "team_logo_col": "logo",
+        "game_predictions_csv": "cfb_game_predictions.csv",
+        "player_props_csv": None,
+        "vegas_comparison_csv": "cfb_vegas_comparison.csv",
+        "predictions_log_csv": "cfb_predictions_log.csv",
+        "accuracy_summary_json": "cfb_accuracy_summary.json",
+        "live_tracking_start_season": 2026,
+        "ats_since_year": 2026,
+        "data_source_text": "Team efficiency (PPA, success rate, explosiveness) via CollegeFootballData.com. Vegas lines via the-odds-api.com, where available. Covers SEC, Big Ten, Big 12, ACC and FBS independent teams.",
+        "no_games_note": "Covers Power-conference and independent FBS teams only.",
+    },
+}
 
 # Minimal hand-drawn line icons (24x24, currentColor stroke) for card headers -
-# avoids pulling in an icon font/library for five glyphs.
+# avoids pulling in an icon font/library for a handful of glyphs.
 ICONS = {
     "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     "target": '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
@@ -58,40 +99,41 @@ ICONS = {
     "user": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',
 }
 
-# Fallback only, used if data/raw/teams.csv (fetched fresh each run - see
-# fetch_data.py's fetch_team_info()) isn't there for some reason.
+# Fallback only, used if a sport's team CSV (fetched fresh each run) isn't
+# there for some reason.
 _FALLBACK_TEAM_COLOR = "#94a3b8"
-_TEAM_INFO = None
+_TEAM_INFO = {}
 
-def team_info():
-    """Official team colors + ESPN logo URLs, from the same public dataset
-    nflreadr::load_teams() is built on (nflverse redistributes it for exactly
-    this - team branding on public analytics sites)."""
-    global _TEAM_INFO
-    if _TEAM_INFO is None:
-        _TEAM_INFO = {}
-        path = os.path.join(RAW_DIR, "teams.csv")
+def team_info(sport):
+    """Official team colors + logo URLs for this sport, from whatever CSV
+    that sport's fetch step produced (data/raw/teams.csv for NFL via
+    nflverse, data/raw/cfb_teams.csv for CFB via CollegeFootballData.com)."""
+    slug = sport["slug"]
+    if slug not in _TEAM_INFO:
+        info = {}
+        path = os.path.join(RAW_DIR, sport["team_csv"])
         if os.path.exists(path):
             df = pd.read_csv(path)
             for _, r in df.iterrows():
-                _TEAM_INFO[r["team_abbr"]] = {
-                    "color": r["team_color"], "color2": r["team_color2"], "logo": r["team_logo_espn"],
+                info[r[sport["team_abbr_col"]]] = {
+                    "color": r[sport["team_color_col"]], "color2": r[sport["team_color2_col"]], "logo": r[sport["team_logo_col"]],
                 }
-    return _TEAM_INFO
+        _TEAM_INFO[slug] = info
+    return _TEAM_INFO[slug]
 
-def team_color(abbr):
-    return team_info().get(abbr, {}).get("color", _FALLBACK_TEAM_COLOR)
+def team_color(sport, abbr):
+    return team_info(sport).get(abbr, {}).get("color", _FALLBACK_TEAM_COLOR)
 
-def team_logo(abbr):
-    return team_info().get(abbr, {}).get("logo", "")
+def team_logo(sport, abbr):
+    return team_info(sport).get(abbr, {}).get("logo", "")
 
-def matchup_bar(away, home, right_html):
-    """A single wide cell replacing the old separate Matchup/Kickoff columns:
-    both teams' logos, and a soft gradient background fading from the away
-    team's color to the home team's - real branding instead of plain text,
-    with `right_html` (kickoff time, or a HIT/MISS once graded) anchored right."""
-    away_color, home_color = team_color(away), team_color(home)
-    away_logo, home_logo = team_logo(away), team_logo(home)
+def matchup_bar(sport, away, home, right_html):
+    """A single wide cell replacing separate Matchup/Kickoff columns: both
+    teams' logos, and a soft gradient background fading from the away team's
+    color to the home team's - real branding instead of plain text, with
+    `right_html` (kickoff time, or a HIT/MISS once graded) anchored right."""
+    away_color, home_color = team_color(sport, away), team_color(sport, home)
+    away_logo, home_logo = team_logo(sport, away), team_logo(sport, home)
     away_img = f'<img class="team-logo" src="{away_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if away_logo else ""
     home_img = f'<img class="team-logo" src="{home_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if home_logo else ""
     gradient = f"linear-gradient(90deg, {away_color}26 0%, transparent 42%, transparent 58%, {home_color}26 100%)"
@@ -142,24 +184,30 @@ def asset_version():
         _ASSET_VERSION = h.hexdigest()[:10]
     return _ASSET_VERSION
 
-def load_data():
-    games = pd.read_csv(os.path.join(PROCESSED_DIR, "game_predictions.csv"))
-    props = pd.read_csv(os.path.join(PROCESSED_DIR, "player_props.csv"))
+def load_data(sport):
+    games_path = os.path.join(PROCESSED_DIR, sport["game_predictions_csv"])
+    games = pd.read_csv(games_path) if os.path.exists(games_path) else pd.DataFrame()
+
+    props = pd.DataFrame()
+    if sport["player_props_csv"]:
+        props_path = os.path.join(PROCESSED_DIR, sport["player_props_csv"])
+        if os.path.exists(props_path):
+            props = pd.read_csv(props_path)
 
     comparison = None
-    comparison_path = os.path.join(PROCESSED_DIR, "vegas_comparison.csv")
+    comparison_path = os.path.join(PROCESSED_DIR, sport["vegas_comparison_csv"])
     if os.path.exists(comparison_path):
         comparison = pd.read_csv(comparison_path)
 
     accuracy_summary = None
-    summary_path = os.path.join(TRACKING_DIR, "accuracy_summary.json")
+    summary_path = os.path.join(TRACKING_DIR, sport["accuracy_summary_json"])
     if os.path.exists(summary_path):
         with open(summary_path) as f:
             accuracy_summary = json.load(f)
         if accuracy_summary.get("n_graded_games", 0) == 0:
             accuracy_summary = None
 
-    log_path = os.path.join(TRACKING_DIR, "predictions_log.csv")
+    log_path = os.path.join(TRACKING_DIR, sport["predictions_log_csv"])
     log = pd.read_csv(log_path) if os.path.exists(log_path) else pd.DataFrame()
 
     return games, props, comparison, accuracy_summary, log
@@ -190,11 +238,14 @@ FAVICON = ('data:image/svg+xml,'
     '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23c2410c%22/%3E'
     '%3C/svg%3E')
 
-def page_shell(title, active_tab, body_html):
+def page_shell(sport, title, active_tab, body_html):
     tabs = [
         ("index.html", "index", "Home"),
         ("teams.html", "teams", "Teams"),
-        ("players.html", "players", "Players"),
+    ]
+    if sport["player_props_csv"]:
+        tabs.append(("players.html", "players", "Players"))
+    tabs += [
         ("history.html", "history", "History"),
         ("accuracy.html", "accuracy", "Accuracy"),
     ]
@@ -202,6 +253,15 @@ def page_shell(title, active_tab, body_html):
         f'<a href="{href}" class="{"active" if tab == active_tab else ""}">{label}</a>'
         for href, tab, label in tabs
     )
+
+    other_slug = "cfb" if sport["slug"] == "nfl" else "nfl"
+    other_page = active_tab + ".html" if active_tab else "index.html"
+    sport_switcher = "".join(
+        f'<a href="{"../" + s["slug"] + "/" + other_page if s["slug"] != sport["slug"] else "#"}" '
+        f'class="sport-tab{" active" if s["slug"] == sport["slug"] else ""}">{s["wordmark"]}</a>'
+        for s in SPORTS.values()
+    )
+
     now = datetime.now(timezone.utc)
     generated = now.strftime("%b %d, %Y %H:%M UTC")
     ver = asset_version()
@@ -210,13 +270,13 @@ def page_shell(title, active_tab, body_html):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title} - NFL Edge</title>
-<meta name="description" content="Model-driven NFL spreads, totals and player props, validated against the closing Vegas line every week.">
+<title>{title} - {sport["wordmark"]} Edge</title>
+<meta name="description" content="{sport["meta_description"]}">
 <link rel="icon" href="{FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v={ver}">
+<link rel="stylesheet" href="../style.css?v={ver}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -226,10 +286,13 @@ def page_shell(title, active_tab, body_html):
   <header class="masthead">
     <div class="masthead-row">
       <div>
-        <div class="wordmark">NFL <span>EDGE</span></div>
-        <div class="tagline">Model-driven spreads, totals &amp; props - graded against the closing line every week.</div>
+        <div class="wordmark">{sport["wordmark"]} <span>EDGE</span></div>
+        <div class="tagline">{sport["tagline"]}</div>
       </div>
-      <div class="updated-chip">Updated {generated}</div>
+      <div class="masthead-right">
+        <div class="sport-switcher">{sport_switcher}</div>
+        <div class="updated-chip">Updated {generated}</div>
+      </div>
     </div>
   </header>
   <nav class="tabs">{nav}</nav>
@@ -238,11 +301,11 @@ def page_shell(title, active_tab, body_html):
     <div class="footer-grid">
       <div class="footer-col">
         <div class="footer-heading">The Model</div>
-        <p>A coefficients-fit EPA model blended with the live market line, weights validated on held-out seasons - not a gut feeling with a spreadsheet attached.</p>
+        <p>A coefficients-fit efficiency model blended with the live market line, weights validated on held-out seasons - not a gut feeling with a spreadsheet attached.</p>
       </div>
       <div class="footer-col">
         <div class="footer-heading">Data &amp; Sources</div>
-        <p>Play-by-play and schedules via nflverse. Vegas lines via DraftKings, through the-odds-api.com, where available.</p>
+        <p>{sport["data_source_text"]}</p>
       </div>
       <div class="footer-col">
         <div class="footer-heading">Disclaimer</div>
@@ -250,12 +313,12 @@ def page_shell(title, active_tab, body_html):
       </div>
     </div>
     <div class="footer-bottom">
-      <span class="footer-brand">NFL <span>EDGE</span></span>
+      <span class="footer-brand">{sport["wordmark"]} <span>EDGE</span></span>
       <span>&copy; {now.year} - rebuilt from real results every week.</span>
     </div>
   </footer>
 </div>
-<script src="site.js?v={ver}"></script>
+<script src="../site.js?v={ver}"></script>
 </body>
 </html>"""
 
@@ -344,19 +407,18 @@ def build_edge_cards(comparison, week_games, max_cards=3):
       <div class="edge-grid">{cards}</div>
     </div>"""
 
-def build_track_record_section(summary):
+def build_track_record_section(sport, summary):
     if summary is None:
         return card("Track Record", "Graded against real final scores, not vibes",
                      '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>', "target")
 
     year = summary.get("current_season_year", "")
+    since = sport["ats_since_year"]
     # Vegas's own record, not the model's. The site's displayed pick defers
     # fully to the market for the straight-up spread call (0% model weight
     # there - see fitted_coefficients.json), so this IS what "our pick"
     # actually follows; showing the model's separate, weaker record next to
-    # it read as confusing/misleading rather than transparent. What's shown
-    # here is Vegas's real closing-line accuracy since tracking began in
-    # 2024 (backfilled 2024-2025 + live 2026 onward), disclosed as such.
+    # it read as confusing/misleading rather than transparent.
     current = summary.get("current_season", {}).get("vegas")
     all_time = summary.get("all_time", {}).get("vegas")
 
@@ -399,9 +461,9 @@ def build_track_record_section(summary):
         if all_time.get("ats_pushes") is not None:
             small_tiles += f'<div class="bento-tile"><div class="value">{all_time["ats_pushes"]}</div><div class="label">ATS Pushes</div></div>'
     small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
-    <div class="bento-tile"><div class="value">{LIVE_TRACKING_START_SEASON}</div><div class="label">Tracking Since</div></div>"""
+    <div class="bento-tile"><div class="value">{since}</div><div class="label">Tracking Since</div></div>"""
 
-    note = ("""<div class="table-footnote muted">These are Vegas's own closing-line results from 2024 onward, not our
+    note = (f"""<div class="table-footnote muted">These are Vegas's own closing-line results from {since} onward, not our
       model's. Our displayed pick defers fully to the market for the straight-up spread call - backtesting found
       no edge in overriding Vegas there - so this is genuinely what "our pick" follows, shown plainly rather than
       relabeled as an in-house number. Straight-up = picked the game's actual winner. Against the spread (ATS) =
@@ -409,9 +471,9 @@ def build_track_record_section(summary):
       specifically to make that a 50/50 proposition.</div>""")
 
     body = f'<div class="bento-grid">{hero_su}{hero_ats}{wide_tiles}{small_tiles}</div>' + note
-    return card("Track Record", f"Vegas's closing-line record, 2024 to now ({summary['n_graded_games']} games)", body, "target")
+    return card("Track Record", f"Vegas's closing-line record, {since} to now ({summary['n_graded_games']} games)", body, "target")
 
-def build_players_page(props):
+def build_players_page(sport, props):
     def table(stat_cols, cat_id, active):
         if props.empty or stat_cols["sort"] not in props.columns:
             return ""
@@ -433,7 +495,7 @@ def build_players_page(props):
                 elif mult <= 0.92:
                     badge = " " + pill("TOUGH MATCHUP", "danger")
             cells = "".join(f'<td data-key="{c}" data-value="{p[c]}" class="num mono">{p[c]}</td>' for c in stat_cols["display"])
-            border = f"border-left:4px solid {team_color(p['team'])};"
+            border = f"border-left:4px solid {team_color(sport, p['team'])};"
             rows += f"""<tr>
               <td data-key="player" data-value="{p['player_name']}" style="{border}"><b>{p['player_name']}</b>{tag}<div class="muted" style="font-size:11px;">{p['team']} vs {p['opponent']}</div>{badge}</td>
               {cells}
@@ -454,7 +516,7 @@ def build_players_page(props):
 
     if not (passing or rushing or receiving):
         body = '<div class="empty-state">No player projections available yet.</div>'
-        return page_shell("Players", "players", card("Player Projections", "Top 20 per category by projected yards", body, "user"))
+        return page_shell(sport, "Players", "players", card("Player Projections", "Top 20 per category by projected yards", body, "user"))
 
     subtabs = f"""<div class="subtabs">
       <button class="subtab active" data-target="cat-passing">Passing</button>
@@ -463,11 +525,11 @@ def build_players_page(props):
     </div>"""
     body = subtabs + passing + rushing + receiving
     card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click a column to sort", body, "user")
-    return page_shell("Players", "players", card_html)
+    return page_shell(sport, "Players", "players", card_html)
 
-def build_index_page(games, props, comparison, accuracy_summary, log):
-    season = LIVE_TRACKING_START_SEASON
-    weeks = assemble_season_weeks(games, log, comparison, season)
+def build_index_page(sport, games, props, comparison, accuracy_summary, log):
+    season = sport["live_tracking_start_season"]
+    weeks = assemble_season_weeks(sport, games, log, comparison, season)
     this_week_key = current_week_key(weeks)
     this_week = weeks.get(this_week_key) if this_week_key else None
     week_title = this_week["label"] if this_week else "Upcoming"
@@ -475,28 +537,29 @@ def build_index_page(games, props, comparison, accuracy_summary, log):
     week_games_df = next_week_games(games)
     edge_html = build_edge_cards(comparison, week_games_df) if comparison is not None else ""
     slate_html = render_week_table(this_week["games"] if this_week else [])
-    track_html = build_track_record_section(accuracy_summary)
+    track_html = build_track_record_section(sport, accuracy_summary)
 
     subtitle = "Our pick vs. the market, every game this week - hit or miss once played. See the Teams tab for the full season."
+    if not weeks and sport.get("no_games_note"):
+        slate_html = f'<div class="empty-state">No games available yet. {sport["no_games_note"]}</div>'
     body = edge_html + card(f"This Week's Slate - {week_title}", subtitle, slate_html, "calendar") + track_html
-    return page_shell("Home", "index", body)
+    return page_shell(sport, "Home", "index", body)
 
-WEEK_TYPE_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conf. Championship", "SB": "Super Bowl"}
+WEEK_TYPE_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conf. Championship", "SB": "Super Bowl", "POST": "Postseason"}
 
 def week_label(week, game_type=None):
     if game_type in WEEK_TYPE_LABELS:
         return WEEK_TYPE_LABELS[game_type]
     return f"Week {int(week)}"
 
-def assemble_season_weeks(games, log, comparison, season):
+def assemble_season_weeks(sport, games, log, comparison, season):
     """Every game for a season, grouped by week, already-played weeks merged
     with weeks still ahead. Already-played comes from the tracking log
-    (graded); weeks still ahead come straight from game_predictions.csv,
-    which already forecasts the rest of the season, not just the imminent
-    week - the site just never surfaced that beyond 'next week' before.
-    Uses the pure model's own picks throughout (see model_pick()), not the
-    market-mirroring blended line. Shared by both the Teams page (every
-    week) and the Home page (just the current week)."""
+    (graded); weeks still ahead come straight from that sport's
+    game_predictions.csv, which already forecasts the rest of the season, not
+    just the imminent week. Uses the pure model's own picks throughout (see
+    model_pick()), not the market-mirroring blended line. Shared by both the
+    Teams page (every week) and the Home page (just the current week)."""
     weeks = {}
 
     # A week's games can be split across "already played" and "still upcoming"
@@ -508,7 +571,10 @@ def assemble_season_weeks(games, log, comparison, season):
             weeks[key] = {"label": week_label(wk, game_type), "week": int(wk), "games": []}
         return weeks[key]
 
-    graded = log[(log["actual_margin"].notna()) & (log["season"] == season)].copy() if not log.empty else pd.DataFrame()
+    if not log.empty:
+        graded = log[(log["actual_margin"].notna()) & (log["season"] == season)].copy()
+    else:
+        graded = pd.DataFrame(columns=["week", "home_team", "away_team"])
     already_graded = set(zip(graded["week"], graded["home_team"], graded["away_team"]))
     for wk, g in graded.groupby("week"):
         bucket = week_bucket(wk, g["game_type"].iloc[0] if "game_type" in g.columns else None)
@@ -520,7 +586,7 @@ def assemble_season_weeks(games, log, comparison, season):
             home_score = int(r["home_score"]) if pd.notna(r.get("home_score")) else None
             bucket["games"].append({
                 "away_team": r["away_team"], "home_team": r["home_team"],
-                "matchup_html": matchup_bar(r["away_team"], r["home_team"], f"{away_score}-{home_score}"),
+                "matchup_html": matchup_bar(sport, r["away_team"], r["home_team"], f"{away_score}-{home_score}"),
                 "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
                 "vegas_favored_team": vegas_favored,
@@ -530,7 +596,10 @@ def assemble_season_weeks(games, log, comparison, season):
                 "correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
             })
 
-    upcoming = games[games["season"] == season].copy() if not games.empty else pd.DataFrame()
+    if not games.empty:
+        upcoming = games[games["season"] == season].copy()
+    else:
+        upcoming = pd.DataFrame(columns=["week", "home_team", "away_team"])
     vegas_cols = None
     if comparison is not None and not comparison.empty:
         vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line"]]
@@ -546,7 +615,7 @@ def assemble_season_weeks(games, log, comparison, season):
             kickoff = format_kickoff(r.get("weekday"), r.get("gametime"))
             bucket["games"].append({
                 "away_team": r["away_team"], "home_team": r["home_team"],
-                "matchup_html": matchup_bar(r["away_team"], r["home_team"], kickoff or DASH),
+                "matchup_html": matchup_bar(sport, r["away_team"], r["home_team"], kickoff or DASH),
                 "favored_team": pick["favored_team"], "favored_by": round(float(pick["favored_by"]), 1),
                 "win_pct": round(float(pick["win_pct"]), 3), "total": round(float(pick["total"]), 1),
                 "vegas_favored_team": r["vegas_favored_team"] if has_vegas else None,
@@ -566,26 +635,27 @@ def current_week_key(weeks):
             return key
     return ordered[0][0] if ordered else None
 
-def build_teams_page(games, log, comparison):
-    season = LIVE_TRACKING_START_SEASON
-    weeks = assemble_season_weeks(games, log, comparison, season)
+def build_teams_page(sport, games, log, comparison):
+    season = sport["live_tracking_start_season"]
+    weeks = assemble_season_weeks(sport, games, log, comparison, season)
 
     if not weeks:
-        body = card("Teams", f"Every {season} matchup, picked and graded", '<div class="empty-state">No games available yet.</div>', "shield")
-        return page_shell("Teams", "teams", body)
+        empty_note = f' {sport["no_games_note"]}' if sport.get("no_games_note") else ""
+        body = card("Teams", f"Every {season} matchup, picked and graded", f'<div class="empty-state">No games available yet.{empty_note}</div>', "shield")
+        return page_shell(sport, "Teams", "teams", body)
 
     week_order = [k for k, _ in sorted(weeks.items(), key=lambda kv: kv[1]["week"])]
     teams_json = json.dumps({"week_order": week_order, "weeks": weeks, "default_week": current_week_key(weeks)})
     body = card("Teams", f"Every {season} matchup, week 1 through the postseason - picked with our own model, graded once final",
                 '<select id="teams-week-select" class="week-picker"></select><div id="teams-week-content" style="margin-top:16px;"></div>'
                 f'<script>const TEAMS_DATA = {teams_json};</script>', "shield")
-    return page_shell("Teams", "teams", body)
+    return page_shell(sport, "Teams", "teams", body)
 
-def build_history_page(log):
+def build_history_page(sport, log):
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
     if graded.empty:
         body = card("History", "Every graded week, once there's one to show", '<div class="empty-state">No games graded yet.</div>', "clock")
-        return page_shell("History", "history", body)
+        return page_shell(sport, "History", "history", body)
 
     graded = graded.sort_values(["season", "week"])
     weeks = {}
@@ -614,17 +684,18 @@ def build_history_page(log):
     body = card("History", "Every graded week - pick a week to see how we did",
                 f'<select id="week-select" class="week-picker"></select><div id="week-content" style="margin-top:16px;"></div>'
                 f'<script>const HISTORY_DATA = {history_json};</script>', "clock")
-    return page_shell("History", "history", body)
+    return page_shell(sport, "History", "history", body)
 
-def build_accuracy_page(log):
+def build_accuracy_page(sport, log):
+    live_start = sport["live_tracking_start_season"]
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
     if not graded.empty:
-        graded = graded[graded["season"] >= LIVE_TRACKING_START_SEASON]
+        graded = graded[graded["season"] >= live_start]
     if graded.empty:
         body = card("Accuracy Over Time", "Weekly trend, us vs. the market",
                      '<div class="empty-state">No live-tracked games graded yet - check back once the '
-                     f'{LIVE_TRACKING_START_SEASON} season kicks off.</div>', "trend")
-        return page_shell("Accuracy", "accuracy", body)
+                     f'{live_start} season kicks off.</div>', "trend")
+        return page_shell(sport, "Accuracy", "accuracy", body)
 
     graded = graded.sort_values(["season", "week"])
     # "model_*" here too, not "sharp_*" - sharp is the market-blended line,
@@ -649,9 +720,9 @@ def build_accuracy_page(log):
         for cid in ["chart-accuracy", "chart-spread-mae", "chart-brier"]
     )
     body = card("Accuracy Over Time",
-                f"Weekly trend across {int(weekly['n'].sum())} live-picked games ({LIVE_TRACKING_START_SEASON} season onward) - our model's own picks vs. the market",
+                f"Weekly trend across {int(weekly['n'].sum())} live-picked games ({live_start} season onward) - our model's own picks vs. the market",
                 charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>', "trend")
-    return page_shell("Accuracy", "accuracy", body)
+    return page_shell(sport, "Accuracy", "accuracy", body)
 
 def build_404_page():
     body = """<div class="card">
@@ -661,33 +732,91 @@ def build_404_page():
         <h2>This one got called back.</h2>
         <p class="muted">The page you're looking for doesn't exist - it might have been moved, renamed,
         or never existed to begin with.</p>
-        <a class="btn-primary" href="index.html">Back to Home</a>
+        <a class="btn-primary" href="nfl/index.html">Back to Home</a>
       </div>
     </div>"""
-    return page_shell("Page Not Found", None, body)
+    ver = asset_version()
+    now = datetime.now(timezone.utc)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page Not Found - NFL Edge</title>
+<link rel="icon" href="{FAVICON}">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v={ver}">
+</head>
+<body>
+<div class="topbar"></div>
+<div class="hero-glow" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="masthead">
+    <div class="masthead-row"><div><div class="wordmark">NFL <span>EDGE</span></div></div></div>
+  </header>
+  {body}
+  <footer class="site-footer">
+    <div class="footer-bottom"><span class="footer-brand">NFL <span>EDGE</span></span><span>&copy; {now.year}</span></div>
+  </footer>
+</div>
+</body>
+</html>"""
+
+def build_redirect_page():
+    """dist/index.html - a plain redirect to the default sport (NFL) so old
+    bookmarks/links to the site root keep working now that content lives
+    under nfl/ and cfb/ subdirectories."""
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=nfl/index.html">
+<link rel="canonical" href="nfl/index.html">
+<title>NFL Edge</title>
+</head>
+<body>
+<p>Redirecting to <a href="nfl/index.html">NFL Edge</a>&hellip;</p>
+</body>
+</html>"""
+
+def build_sport_pages(sport):
+    print(f"Loading {sport['wordmark']} data...")
+    games, props, comparison, accuracy_summary, log = load_data(sport)
+
+    pages = {
+        "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log),
+        "teams.html": build_teams_page(sport, games, log, comparison),
+        "history.html": build_history_page(sport, log),
+        "accuracy.html": build_accuracy_page(sport, log),
+    }
+    if sport["player_props_csv"]:
+        pages["players.html"] = build_players_page(sport, props)
+
+    out_dir = os.path.join(DIST_DIR, sport["slug"])
+    os.makedirs(out_dir, exist_ok=True)
+    for filename, html in pages.items():
+        with open(os.path.join(out_dir, filename), "w") as f:
+            f.write(html)
+        print(f"  Wrote {sport['slug']}/{filename}")
 
 def main():
-    print("Loading data...")
-    games, props, comparison, accuracy_summary, log = load_data()
-
-    print("Building pages...")
+    print("Building site...")
     os.makedirs(DIST_DIR, exist_ok=True)
-    pages = {
-        "index.html": build_index_page(games, props, comparison, accuracy_summary, log),
-        "teams.html": build_teams_page(games, log, comparison),
-        "players.html": build_players_page(props),
-        "history.html": build_history_page(log),
-        "accuracy.html": build_accuracy_page(log),
-        "404.html": build_404_page(),
-    }
-    for filename, html in pages.items():
-        with open(os.path.join(DIST_DIR, filename), "w") as f:
-            f.write(html)
-        print(f"  Wrote {filename}")
+
+    for sport in SPORTS.values():
+        build_sport_pages(sport)
+
+    with open(os.path.join(DIST_DIR, "index.html"), "w") as f:
+        f.write(build_redirect_page())
+    print("  Wrote index.html (redirect to nfl/)")
+
+    with open(os.path.join(DIST_DIR, "404.html"), "w") as f:
+        f.write(build_404_page())
+    print("  Wrote 404.html")
 
     for asset in ["style.css", "site.js"]:
         shutil.copy(os.path.join(WEB_SRC_DIR, asset), os.path.join(DIST_DIR, asset))
-    print(f"  Copied static assets")
+    print("  Copied static assets")
 
     print(f"\nSite built in {DIST_DIR}")
 
