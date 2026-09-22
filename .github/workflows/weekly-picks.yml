@@ -1,4 +1,12 @@
-name: Weekly NFL Picks
+name: Weekly Picks
+
+# Runs both the NFL and college football pipelines. NFL always runs; the CFB
+# steps need the CFBD_API_KEY secret (a free key from
+# https://collegefootballdata.com/key) and reuse the existing ODDS_API_KEY
+# secret for current-week lines. Every CFB step has continue-on-error: true
+# so a missing key or a CFBD hiccup can never break the NFL pipeline or the
+# deploy - build_site.py already renders an empty state for a sport with no
+# data yet.
 
 on:
   workflow_dispatch:
@@ -6,6 +14,10 @@ on:
     # Non-game days (Tue/Wed/Fri/Sat): refresh every 12 hours so injury
     # reports, line movement, and the model's own weekly refit all show up
     # reasonably fresh without needing a run timed to any specific event.
+    # Saturday (college football's main day) rides this same cadence rather
+    # than a kickoff-timed slot - CFB kickoffs are spread from noon to
+    # midnight ET, so no single "1hr before kickoff" time fits it the way it
+    # does the NFL's few distinct windows.
     - cron: "0 */12 * * 2,3,5,6"
     # Game days: one run timed to roughly an hour before that day's earliest
     # kickoff instead of the flat 12h cadence, so the site is freshly built
@@ -84,6 +96,40 @@ jobs:
       - name: Track prediction accuracy
         id: track_results
         run: python src/track_results.py
+
+      - name: Fetch CFB data
+        id: fetch_cfb_data
+        continue-on-error: true
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: python src/fetch_cfb_data.py
+
+      - name: Build CFB features
+        id: build_cfb_features
+        continue-on-error: true
+        run: python src/build_cfb_features.py
+
+      - name: Fetch CFB odds
+        id: fetch_cfb_odds
+        continue-on-error: true
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python src/fetch_cfb_odds.py
+
+      - name: Generate CFB game predictions
+        id: cfb_game_predictions
+        continue-on-error: true
+        run: python src/models/cfb_game_predictions.py
+
+      - name: Compare CFB to Vegas
+        id: compare_cfb_vegas
+        continue-on-error: true
+        run: python src/models/compare_cfb_to_vegas.py
+
+      - name: Track CFB prediction accuracy
+        id: track_cfb_results
+        continue-on-error: true
+        run: python src/track_cfb_results.py
 
       - name: Commit tracking data
         id: commit_tracking

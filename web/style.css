@@ -115,6 +115,39 @@ header.masthead .tagline {
   box-shadow: var(--shadow-sm);
 }
 
+.masthead-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sport-switcher {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: #e9edf3;
+  border-radius: 999px;
+}
+
+.sport-tab {
+  display: inline-block;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  color: var(--text-muted);
+  border-radius: 999px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.sport-tab:hover { color: var(--text-primary); }
+
+.sport-tab.active {
+  color: #fff;
+  background: var(--primary);
+}
+
 nav.tabs {
   display: inline-flex;
   gap: 2px;
@@ -523,6 +556,8 @@ footer.site-footer {
   .wrap { padding: 24px 14px 48px 14px; }
   header.masthead .wordmark { font-size: 25px; }
   header.masthead .tagline { max-width: none; }
+  .masthead-right { width: 100%; justify-content: space-between; }
+  .sport-tab { padding: 6px 12px; font-size: 11px; }
   .hero-number { font-size: 29px; }
   .card-header { padding: 16px 16px 14px 16px; }
   .card-body { padding: 14px 16px 18px 16px; }
