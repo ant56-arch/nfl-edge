@@ -61,6 +61,7 @@ def fetch_team_info(season):
         logos = t.get("logos") or []
         rows.append({
             "team": t.get("school"),
+            "abbreviation": t.get("abbreviation") or t.get("school"),
             "conference": conference,
             "color": t.get("color") or "#94a3b8",
             "alt_color": t.get("alt_color") or t.get("color") or "#94a3b8",
