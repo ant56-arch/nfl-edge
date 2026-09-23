@@ -135,3 +135,22 @@ def write_json(path, sport, slate, updated):
         json.dump({"sport": sport.upper(), "label": slate["label"], "updated": updated,
                    "espn": espn_url(sport), "top25_only": sport == "cfb", "games": slate["games"]}, f, indent=1)
 
+
+
+def schedule_redirect(sport):
+    """A stub at a sport's old schedule.html (each league had its own Schedule
+    tab before it moved to the home site) that forwards to the shared page."""
+    url = f"https://ant56-arch.github.io/schedule.html#{sport}"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url={url}">
+<link rel="canonical" href="{url}">
+<title>Schedule | Sports Edge</title>
+</head>
+<body>
+<p>The schedule moved. <a href="{url}">Open the Schedule tab</a>.</p>
+</body>
+</html>
+"""
