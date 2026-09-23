@@ -175,7 +175,7 @@ function initCharts() {
           title: { display: true, text: title, align: "start", font: { size: 15, weight: "bold" }, color: "#ecebe7" },
           legend: { display: true, position: "top", align: "start", labels: { color: "#ecebe7", font: { size: 13 }, boxWidth: 12, boxHeight: 2 } },
           tooltip: {
-            backgroundColor: "#1a1b1d", borderColor: "#45484e", borderWidth: 1, cornerRadius: 0,
+            backgroundColor: "#1a1b1d", borderColor: "#45484e", borderWidth: 1, cornerRadius: 6,
             titleColor: "#ecebe7", bodyColor: "#a8a7a1",
             callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatFn(ctx.parsed.y)}` },
           },
@@ -193,3 +193,84 @@ function initCharts() {
   lineChart("chart-brier", "Win Probability Calibration by Week (Brier score, lower = sharper)", ACCURACY_DATA.us_brier, ACCURACY_DATA.vegas_brier, (v) => v.toFixed(3));
 }
 initCharts();
+
+// --- Scoreboard strip (shared by every Edge site) ---
+// Fills <div class="scoreboard"> under the top bar with each site's latest
+// top picks, read from the summary.json files the sites publish. They're all
+// on ant56-arch.github.io, so these are same-origin fetches. The strip stays
+// hidden unless at least one summary loads. Keep this block identical in
+// home.js (ant56-arch.github.io), web/site.js (nfl-edge) and web/site.js
+// (mlb-hit-predictor).
+const EDGE_SITES = [
+  { sport: "NFL", summary: "/nfl-edge/nfl/summary.json", href: "/nfl-edge/nfl/index.html" },
+  { sport: "CFB", summary: "/nfl-edge/cfb/summary.json", href: "/nfl-edge/cfb/index.html" },
+  { sport: "MLB", summary: "/mlb-hit-predictor/summary.json", href: "/mlb-hit-predictor/" },
+  { sport: "NBA", summary: "/mlb-hit-predictor/nba/summary.json", href: "/mlb-hit-predictor/nba/index.html" },
+];
+
+function edgeFetchSummaries() {
+  if (!window.edgeSummaries) {
+    window.edgeSummaries = Promise.all(EDGE_SITES.map(site =>
+      fetch(site.summary, { cache: "no-cache" })
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null)));
+  }
+  return window.edgeSummaries;
+}
+
+function edgeNode(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function edgeResultPill(result, labels) {
+  const [yes, no] = labels || ["HIT", "MISS"];
+  if (result === true) return edgeNode("span", "pill pill-positive", yes);
+  if (result === false) return edgeNode("span", "pill pill-danger", no);
+  return null;
+}
+
+async function initScoreboard() {
+  const board = document.querySelector(".scoreboard");
+  if (!board) return;
+  const summaries = await edgeFetchSummaries();
+  const track = edgeNode("div", "scoreboard-track");
+  EDGE_SITES.forEach((site, i) => {
+    const s = summaries[i];
+    const picks = s ? (s.picks || []).slice(0, 3) : [];
+    if (!picks.length && !(s && s.record)) return;
+    const head = edgeNode("a", "score-cell score-sport");
+    head.href = site.href;
+    head.append(edgeNode("span", "score-sport-name", site.sport), edgeNode("span", "score-top", s.heading || ""));
+    track.append(head);
+
+    picks.forEach((p, rank) => {
+      const cell = edgeNode("a", "score-cell");
+      cell.href = site.href;
+      cell.append(edgeNode("span", "score-top", rank === 0 ? "Top pick" : `Pick ${rank + 1}`));
+      const main = edgeNode("span", "score-main");
+      main.append(edgeNode("span", "score-label", p.label), edgeNode("span", "score-value", p.value));
+      const sub = edgeNode("span", "score-sub");
+      sub.append(edgeNode("span", null, p.sub || ""));
+      const pill = edgeResultPill(p.result, s.result_labels);
+      if (pill) sub.append(pill);
+      cell.append(main, sub);
+      track.append(cell);
+    });
+    if (!picks.length && s.record) {
+      const cell = edgeNode("a", "score-cell");
+      cell.href = site.href;
+      cell.append(edgeNode("span", "score-top", s.record.label));
+      const main = edgeNode("span", "score-main");
+      main.append(edgeNode("span", "score-label", s.record.value));
+      cell.append(main, edgeNode("span", "score-sub", s.record.sub || ""));
+      track.append(cell);
+    }
+  });
+  if (!track.children.length) return;
+  board.replaceChildren(track);
+  board.hidden = false;
+}
+initScoreboard();
