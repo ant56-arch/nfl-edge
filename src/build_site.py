@@ -237,6 +237,11 @@ FAVICON = ('data:image/svg+xml,'
     '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23e5793b%22/%3E'
     '%3C/svg%3E')
 
+# MLB Edge is a separate site (github.com/ant56-arch/mlb-hit-predictor) that
+# shares this look; the sport switcher links out to it as a third tab.
+MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/"
+MLB_SPORT_TAB = f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
+
 def page_shell(sport, title, active_tab, body_html):
     tabs = [
         ("index.html", "index", "Home"),
@@ -261,7 +266,7 @@ def page_shell(sport, title, active_tab, body_html):
         + ('class="sport-tab active" aria-current="page">' if s["slug"] == sport["slug"] else 'class="sport-tab">')
         + f'{s["wordmark"]}</a>'
         for s in SPORTS.values()
-    )
+    ) + MLB_SPORT_TAB
 
     now = datetime.now(timezone.utc)
     generated = now.strftime("%b %d, %Y %H:%M UTC")
@@ -763,7 +768,7 @@ def root_page_shell(title, body_html):
     <div class="masthead-row">
       <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
       <nav class="sport-switcher" aria-label="Sport">
-        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>
+        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{MLB_SPORT_TAB}
       </nav>
     </div>
   </header>
