@@ -1110,6 +1110,7 @@ def build_sport_pages(sport):
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
         "model.html": build_model_page(sport),
+        "schedule.html": games_mod.schedule_redirect(sport["slug"]),
     }
     if sport["player_props_csv"]:
         pages["players.html"] = build_players_page(sport, props)
