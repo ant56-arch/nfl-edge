@@ -278,6 +278,7 @@ def page_shell(sport, title, active_tab, body_html):
     tabs = [
         ("index.html", "index", "Home"),
         ("teams.html", "teams", "Teams"),
+        ("schedule.html", "schedule", "Schedule"),
     ]
     if sport["player_props_csv"]:
         tabs.append(("players.html", "players", "Players"))
@@ -1107,6 +1108,7 @@ def build_sport_pages(sport):
     pages = {
         "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary),
         "teams.html": build_teams_page(sport, games, log, comparison),
+        "schedule.html": build_schedule_page(sport, slate),
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
         "model.html": build_model_page(sport),
