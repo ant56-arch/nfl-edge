@@ -248,8 +248,12 @@ FAVICON = ('data:image/svg+xml,'
 # switcher links out to them after the NFL and CFB tabs.
 MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/"
 NBA_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/nba/index.html"
+# Every sport's games as a TV grid, on the home site (schedule.js there reads
+# the games.json each sport publishes).
+SCHEDULE_URL = "https://ant56-arch.github.io/schedule.html"
 OTHER_SPORT_TABS = (f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
-                 f'<a class="sport-tab" href="{NBA_EDGE_URL}">NBA</a>')
+                 f'<a class="sport-tab" href="{NBA_EDGE_URL}">NBA</a>'
+                 f'<a class="sport-tab" href="{SCHEDULE_URL}">Schedule</a>')
 # The home page (github.com/ant56-arch/ant56-arch.github.io) links every site
 # and shows each one's summary.json; the switcher's first tab goes back to it.
 HOME_URL = "https://ant56-arch.github.io/"
@@ -1095,16 +1099,6 @@ def attach_game_picks(sport, slate, games, log, comparison):
             eg["pick"] = {"text": f"{match['favored_team']} -{match['favored_by']:.1f}, {match['win_pct']:.0%}",
                           "result": match["correct"] if match["graded"] and eg["state"] == "post" else None}
     return slate
-
-def build_schedule_page(sport, slate):
-    if sport["slug"] == "cfb":
-        empty = "No Top 25 games on this week's schedule yet."
-        note = "Games with a Top 25 team (AP poll), times and TV from ESPN. Our pick shows for games between teams we cover."
-    else:
-        empty = "No games on this week's schedule yet."
-        note = "Times and TV from ESPN."
-    body = games_mod.render(slate, card, "Our pick", empty, note)
-    return page_shell(sport, "Schedule", "schedule", body)
 
 def build_sport_pages(sport):
     print(f"Loading {sport['wordmark']} data...")

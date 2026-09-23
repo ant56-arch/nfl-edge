@@ -1,5 +1,6 @@
 """Game schedules and scores from ESPN's public scoreboard API, for the
-scoreboard strip at the top of every Edge site and each sport's Schedule tab.
+scoreboard strip at the top of every Edge site and the Schedule tab on the
+home site (ant56-arch.github.io/schedule.html), which both read games.json.
 
 Keep this file identical in mlb-hit-predictor (MLB and NBA) and nfl-edge
 (src/games.py, NFL and CFB).
@@ -9,18 +10,16 @@ Keep this file identical in mlb-hit-predictor (MLB and NBA) and nfl-edge
                          CFB, the current day for MLB and NBA. Never raises;
                          returns {"label", "games": []} when ESPN can't be
                          reached (it's blocked in some sandboxes).
-  write_json(path, ...)  games.json for the scoreboard strip, next to
-                         summary.json. The strip refreshes scores from ESPN in
-                         the browser and falls back to this file.
-  render(...)            the Schedule tab body.
+  write_json(path, ...)  games.json for the scoreboard strip and Schedule
+                         tab, next to summary.json. Both refresh scores from
+                         ESPN in the browser and fall back to this file.
 
 Each site attaches its own pick to a game as game["pick"] = {"text", "result"}
-before writing or rendering.
+before writing.
 """
 import json
 import time
 from datetime import datetime
-from html import escape
 from zoneinfo import ZoneInfo
 
 import requests
@@ -136,65 +135,3 @@ def write_json(path, sport, slate, updated):
         json.dump({"sport": sport.upper(), "label": slate["label"], "updated": updated,
                    "espn": espn_url(sport), "top25_only": sport == "cfb", "games": slate["games"]}, f, indent=1)
 
-
-# ── Schedule tab ─────────────────────────────────────────────────────────────
-def _status(g):
-    if g["state"] == "pre":
-        t = start_et(g)
-        return t.strftime("%-I:%M %p ET") if t.minute or t.hour else "Time TBA"
-    return g["detail"] or ("Final" if g["state"] == "post" else "Live")
-
-
-def _side(t, show_score):
-    rank = f'<span class="sched-rank">{t["rank"]}</span>' if t["rank"] else ""
-    logo = f'<img class="sched-logo" src="{escape(t["logo"])}" alt="" loading="lazy">' if t["logo"] else '<span class="sched-logo"></span>'
-    score = (f'<span class="sched-score{" win" if t["winner"] else ""}">{t["score"]}</span>'
-             if show_score and t["score"] is not None else "")
-    sub = t["probable"] or t["record"] or ""
-    return (f'<div class="sched-team">{logo}<div class="sched-name">{rank}<span>{escape(t["short"] or t["abbr"])}</span>'
-            f'{f"<small>{escape(sub)}</small>" if sub else ""}</div>{score}</div>')
-
-
-def _game(g, pick_label):
-    live = g["state"] == "in"
-    show_score = g["state"] != "pre"
-    pick = g.get("pick")
-    pick_html = ""
-    if pick:
-        pill = ""
-        if pick.get("result") is True:
-            pill = '<span class="pill pill-positive">HIT</span>'
-        elif pick.get("result") is False:
-            pill = '<span class="pill pill-danger">MISS</span>'
-        pick_html = (f'<div class="sched-pick"><span class="sched-pick-label">{escape(pick_label)}</span>'
-                     f'<span class="sched-pick-text">{escape(pick["text"])}</span>{pill}</div>')
-    tv = f'<span class="sched-tv">{escape(g["tv"])}</span>' if g["tv"] else ""
-    sep = "vs" if g["neutral"] else "@"
-    return f"""<article class="sched-game{' is-live' if live else ''}">
-      <div class="sched-top"><span class="sched-status">{escape(_status(g))}</span>{tv}</div>
-      {_side(g["away"], show_score)}
-      <div class="sched-sep">{sep}</div>
-      {_side(g["home"], show_score)}
-      {pick_html}
-    </article>"""
-
-
-def render(slate, card, pick_label, empty, note=""):
-    """The Schedule tab body: the slate grouped by day, then by start time."""
-    games = slate["games"]
-    if not games:
-        return card("Schedule", "", f'<div class="empty-state">{escape(empty)}</div>')
-    days = {}
-    for g in games:
-        t = start_et(g)
-        slot = t.strftime("%-I:%M %p ET") if t.hour or t.minute else "Time TBA"
-        days.setdefault(t.strftime("%A, %B %-d"), {}).setdefault(slot, []).append(g)
-    parts = []
-    for day, slots in days.items():
-        body = ""
-        for slot, gs in slots.items():
-            body += f'<div class="section-label">{escape(slot)}</div>' + '<div class="sched-grid">' + "".join(_game(g, pick_label) for g in gs) + "</div>"
-        n = sum(len(gs) for gs in slots.values())
-        parts.append(card(escape(day), f"{n} game{'s' if n != 1 else ''}", body))
-    foot = f'<div class="table-footnote">{escape(note)}</div>' if note else ""
-    return "".join(parts) + foot
