@@ -773,8 +773,21 @@ footer.site-footer {
   .score-cell { min-width: 150px; }
 }
 
-@media (max-width: 380px) {
-  .brand-name { display: none; }
+/* Phones: the sport tabs drop to their own row under the brand, spread
+   across the full width, so every sport stays in view without swiping. */
+@media (max-width: 560px) {
+  .topbar-inner { flex-wrap: wrap; row-gap: 0; }
+  .brand { padding: 8px 0; }
+  .sport-switcher {
+    flex-basis: calc(100% + 32px);
+    justify-content: space-between;
+    margin: 0 -16px;
+    padding: 0 6px;
+    border-top: 1px solid var(--rule);
+  }
+  .sport-tab { min-height: 44px; }
+  .tabs-inner { gap: 18px; }
+  nav.tabs a { font-size: 16px; }
 }
 
 /* Below this width a 5-6 column game table can't fit, so each row becomes
