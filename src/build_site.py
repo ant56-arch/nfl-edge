@@ -250,6 +250,21 @@ OTHER_SPORT_TABS = (f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
 # and shows each one's summary.json; the switcher's first tab goes back to it.
 HOME_URL = "https://ant56-arch.github.io/"
 HOME_SPORT_TAB = f'<a class="sport-tab" href="{HOME_URL}">All</a>'
+# The Sports Edge brand mark in the top bar, same on every Edge site.
+BRAND_MARK = ('<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 3h22l-8 26H1z" fill="#e5793b"/>'
+              '<path transform="translate(4.3 0) skewX(-15)" d="M10 9h12v3.2h-8.4v2.3h7.4v3h-7.4v2.3H22V23H10z" '
+              'fill="#121314"/></svg>')
+
+def top_bar(sport_switcher):
+    """The black network bar (brand + sport tabs) and the scoreboard strip
+    under it, which site.js fills from every Edge site's summary.json."""
+    return f"""<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{HOME_URL}">{BRAND_MARK}<span class="brand-name">Sports <span>Edge</span></span></a>
+    <nav class="sport-switcher" aria-label="Sport">{sport_switcher}</nav>
+  </div>
+</header>
+<aside class="scoreboard" aria-label="Latest top picks" hidden></aside>"""
 
 def page_shell(sport, title, active_tab, body_html):
     tabs = [
@@ -290,26 +305,22 @@ def page_shell(sport, title, active_tab, body_html):
 <link rel="icon" href="{FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css?v={ver}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to main content</a>
+{top_bar(sport_switcher)}
+<header class="masthead" data-sport="{sport["wordmark"]}">
+  <div class="masthead-inner">
+    <h1 class="wordmark">{sport["wordmark"]} <span>EDGE</span></h1>
+    <div class="tagline">{sport["tagline"]}</div>
+    <div class="updated-chip">Updated {generated}</div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections"><div class="tabs-inner">{nav}</div></nav>
 <div class="wrap">
-  <header class="masthead">
-    <div class="masthead-row">
-      <div>
-        <h1 class="wordmark">{sport["wordmark"]} <span>EDGE</span></h1>
-        <div class="tagline">{sport["tagline"]}</div>
-      </div>
-      <div class="masthead-right">
-        <nav class="sport-switcher" aria-label="Sport">{sport_switcher}</nav>
-        <div class="updated-chip">Updated {generated}</div>
-      </div>
-    </div>
-  </header>
-  <nav class="tabs" aria-label="Sections">{nav}</nav>
   <main id="main-content">
   {body_html}
   </main>
@@ -757,8 +768,8 @@ LEGAL_EFFECTIVE_DATE = "September 23, 2026"
 
 def root_page_shell(title, body_html):
     """Shell for the pages that live at the site root rather than under a
-    sport (404, Terms, Privacy) - same masthead and footer links, no sport
-    tabs."""
+    sport (404, Terms, Privacy) - same top bar and footer links, no sport
+    hero or section tabs."""
     ver = asset_version()
     now = datetime.now(timezone.utc)
     return f"""<!DOCTYPE html>
@@ -768,21 +779,14 @@ def root_page_shell(title, body_html):
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} | NFL Edge</title>
 <link rel="icon" href="{FAVICON}">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v={ver}">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to main content</a>
+{top_bar(HOME_SPORT_TAB + '<a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>' + OTHER_SPORT_TABS)}
 <div class="wrap">
-  <header class="masthead">
-    <div class="masthead-row">
-      <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
-      <nav class="sport-switcher" aria-label="Sport">
-        {HOME_SPORT_TAB}<a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{OTHER_SPORT_TABS}
-      </nav>
-    </div>
-  </header>
-  <main id="main-content" style="padding-top:32px;">
+  <main id="main-content">
   {body_html}
   </main>
   <footer class="site-footer">
