@@ -202,7 +202,12 @@ def main():
     print(f"  Total games: {len(games):,}")
 
     print("\n[3/3] Advanced per-game team stats (PPA, success rate, explosiveness)...")
-    stats = fetch_advanced_stats(season)
+    # Last season too, so every team has recent form from week 1 (and before
+    # it) - build_cfb_features.py's recency weighting fades it out as this
+    # season's games come in, the same way fit_cfb_model.py's walk-forward
+    # features carry across seasons.
+    frames = [fetch_advanced_stats(s) for s in (season - 1, season)]
+    stats = pd.concat([f for f in frames if not f.empty], ignore_index=True) if any(not f.empty for f in frames) else pd.DataFrame()
     if not stats.empty and covered:
         stats = stats[stats["team"].isin(covered)]
     stats.to_csv(os.path.join(RAW_DIR, "cfb_advanced_stats.csv"), index=False)

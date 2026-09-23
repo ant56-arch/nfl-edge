@@ -41,6 +41,7 @@ and unnecessary to redo twice a week.
 
 import pandas as pd
 import numpy as np
+import requests
 import json
 import os
 import sys
@@ -50,6 +51,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fetch_data import download_csv_gz, current_nfl_season
 from build_features import build_team_game_stats, build_team_defense_game_stats
 from historical_features import compute_walkforward_features
+from build_features import RECENCY_HALF_LIFE_GAMES
+import model_guard as guard
 
 HISTORICAL_RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "historical_raw")
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
@@ -61,6 +64,22 @@ TRAIN_START_SEASON = 2013          # modern EPA-era data, ~13 seasons by default
 VALIDATION_SEASONS = 2             # most recent N completed seasons held out
 BLEND_GRID = np.round(np.arange(0.0, 1.01, 0.05), 2)
 
+# Recipe search (see model_guard.py): the team-form recency half-life, which
+# build_features.py then uses for the live team stats, and how many seasons to
+# fit on. Scored on the most recent RECENT_HOLDOUT_GAMES games (about a season).
+RECENT_HOLDOUT_GAMES = 256
+DEFAULT_RECIPE = {"team_half_life": RECENCY_HALF_LIFE_GAMES, "seasons": "all"}
+RECIPES = [{"team_half_life": h, "seasons": n} for h in (2, 4, 8) for n in ("all", 8)]
+COEFFICIENTS_PATH = os.path.join(MODELS_DIR, "fitted_coefficients.json")
+
+def recipe_name(r):
+    return f"half-life {r['team_half_life']} games, {r['seasons']} seasons"
+
+def window(recipe, dataset):
+    if recipe["seasons"] == "all" or dataset.empty:
+        return dataset
+    return dataset[dataset["season"] > dataset["season"].max() - recipe["seasons"]]
+
 OFF_METRICS = ["epa_per_play", "third_down_rate", "redzone_td_rate", "explosive_rate", "sack_rate"]
 DEF_METRICS = ["def_epa_per_play_allowed"]
 
@@ -70,7 +89,13 @@ def fetch_historical_pbp(seasons):
         dest = os.path.join(HISTORICAL_RAW_DIR, f"pbp_{season}.csv.gz")
         if not os.path.exists(dest):
             url = f"{BASE}/pbp/play_by_play_{season}.csv.gz"
-            download_csv_gz(url, dest)
+            try:
+                download_csv_gz(url, dest)
+            except requests.exceptions.HTTPError as e:
+                # Between the Super Bowl and week 1 the new season's file
+                # doesn't exist yet - fit on the seasons that do.
+                print(f"  Skipping {season} (not published yet): {e}")
+                continue
         df = pd.read_csv(dest, compression="gzip", low_memory=False)
         df["season"] = season
         frames.append(df)
@@ -223,26 +248,9 @@ def evaluate_blend(model_spread, vegas_spread, actual_margin, model_wp, vegas_wp
     best_wp_w = float(grid.loc[grid["brier_score"].idxmin(), "weight_on_model"])
     return grid, best_spread_w, best_wp_w
 
-def run():
-    current_season = current_nfl_season()
-    seasons = list(range(TRAIN_START_SEASON, current_season + 1))
-    print(f"Fetching play-by-play for {len(seasons)} seasons ({seasons[0]}-{seasons[-1]})...")
-    pbp = fetch_historical_pbp(seasons)
-    print(f"  {len(pbp):,} rows loaded")
-
-    print("Rebuilding per-game team/defense stats...")
-    off_game, def_game = load_pbp_offense_defense(pbp)
-
-    print("Computing walk-forward (no-leakage) features...")
-    off_walk = compute_walkforward_features(off_game, OFF_METRICS)
-    def_walk = compute_walkforward_features(def_game, DEF_METRICS)
-
-    print("Fetching historical schedules + closing Vegas lines...")
-    schedules = fetch_historical_schedules()
-    dataset = build_dataset(off_walk, def_walk, schedules)
-    dataset = dataset[dataset["season"] >= TRAIN_START_SEASON]
-    print(f"  {len(dataset)} completed games with usable Vegas lines")
-
+def validate_and_fit(dataset):
+    """Fit on all but the last VALIDATION_SEASONS seasons, pick blend weights
+    on those held-out seasons, then refit on everything."""
     holdout_seasons = sorted(dataset["season"].unique())[-VALIDATION_SEASONS:]
     train = dataset[~dataset["season"].isin(holdout_seasons)]
     validation = dataset[dataset["season"].isin(holdout_seasons)]
@@ -307,7 +315,7 @@ def run():
 
     output = {
         "fitted_at": datetime.now(timezone.utc).isoformat(),
-        "train_seasons": [int(s) for s in seasons],
+        "train_seasons": [int(s) for s in sorted(dataset["season"].unique())],
         "n_games_used": final_coefs["n_games"],
         "coefficients": final_coefs,
         "blend_weight_on_model_spread": best_spread_w,
@@ -328,10 +336,66 @@ def run():
         },
     }
 
-    out_path = os.path.join(MODELS_DIR, "fitted_coefficients.json")
-    with open(out_path, "w") as f:
-        json.dump(output, f, indent=2)
-    print(f"\nSaved fitted coefficients + holdout validation report to {out_path}")
+    return output
+
+def run():
+    current_season = current_nfl_season()
+    seasons = list(range(TRAIN_START_SEASON, current_season + 1))
+    print(f"Fetching play-by-play for {len(seasons)} seasons ({seasons[0]}-{seasons[-1]})...")
+    pbp = fetch_historical_pbp(seasons)
+    print(f"  {len(pbp):,} rows loaded")
+
+    print("Rebuilding per-game team/defense stats...")
+    off_game, def_game = load_pbp_offense_defense(pbp)
+
+    print("Fetching historical schedules + closing Vegas lines...")
+    schedules = fetch_historical_schedules()
+
+    datasets = {}
+
+    def dataset_for(recipe):
+        """Completed games with walk-forward (no-leakage) features at this
+        recipe's half-life."""
+        hl = recipe["team_half_life"]
+        if hl not in datasets:
+            off_walk = compute_walkforward_features(off_game, OFF_METRICS, half_life=hl)
+            def_walk = compute_walkforward_features(def_game, DEF_METRICS, half_life=hl)
+            dataset = build_dataset(off_walk, def_walk, schedules)
+            datasets[hl] = dataset[dataset["season"] >= TRAIN_START_SEASON]
+        return datasets[hl]
+
+    live = guard.load_json(COEFFICIENTS_PATH)
+    live_recipe = live.get("recipe", DEFAULT_RECIPE)
+    base = dataset_for(live_recipe)
+    print(f"  {len(base)} completed games with usable Vegas lines")
+    if guard.nothing_new(live, base):
+        print(f"No games since the live model's last fit ({live['trained_through']}) - keeping it.")
+        return
+
+    print(f"\nScoring recipes on the most recent {RECENT_HOLDOUT_GAMES} games (each fit only on earlier games)...")
+    fit = lambda feats, games: fit_margin_and_total(feats, games)[0]  # noqa: E731
+    chosen, report = guard.search(RECIPES, live_recipe, dataset_for, window, fit, make_features, model_predict,
+                                  RECENT_HOLDOUT_GAMES, recipe_name)
+    dataset = window(chosen, dataset_for(chosen))
+    print(f"\nRecipe: {recipe_name(chosen)}{' (switched)' if report['switched'] else ''}")
+
+    output = validate_and_fit(dataset)
+    trained_through = guard.latest_gameday(dataset)
+    output.update({"recipe": chosen, "team_half_life_games": chosen["team_half_life"],
+                   "trained_through": trained_through})
+    ok, why, new, live_score = guard.deploy_ok(output["coefficients"], live.get("coefficients"), live_recipe, chosen,
+                                               dataset_for, make_features, model_predict, report["keys"])
+    if ok:
+        with open(COEFFICIENTS_PATH, "w") as f:
+            json.dump(output, f, indent=2)
+        print(f"\nSaved fitted coefficients + holdout validation report to {COEFFICIENTS_PATH}")
+    reason = why or ("new recipe beat the live one on recent games" if report["switched"]
+                     else "kept the recipe, refit with the newest games")
+    guard.log_run("nfl", live_recipe, report, ok, reason, new, live_score, trained_through,
+                  {"holdout_validation": output["holdout_validation"]})
+    guard.summary([f"### NFL game model refit ({trained_through})",
+                   f"- Recipe: {'switched to ' if report['switched'] else 'kept '}{recipe_name(chosen)}",
+                   f"- Deployed: {'yes' if ok else 'no - ' + why}"])
 
 if __name__ == "__main__":
     run()

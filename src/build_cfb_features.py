@@ -22,7 +22,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from build_features import apply_recency_weighting, RECENCY_HALF_LIFE_GAMES
+from build_features import apply_recency_weighting, load_team_half_life
 
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
@@ -43,7 +43,11 @@ def main():
         return
 
     print("Applying recency weighting (current form vs season-long)...")
-    team_stats = apply_recency_weighting(game_stats, "team", METRICS, half_life=RECENCY_HALF_LIFE_GAMES)
+    # Last season's games are in here too, so week 1 starts from last year's
+    # form (fading as this season's games come in) instead of no data at all.
+    half_life = load_team_half_life(os.path.join(os.path.dirname(__file__), "models", "fitted_cfb_coefficients.json"))
+    print(f"  Using team half-life = {half_life} games")
+    team_stats = apply_recency_weighting(game_stats, "team", METRICS, half_life=half_life)
     team_stats.to_csv(os.path.join(PROCESSED_DIR, "cfb_team_stats.csv"), index=False)
     print(f"  Saved cfb_team_stats.csv ({len(team_stats)} teams)")
 

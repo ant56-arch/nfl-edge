@@ -48,7 +48,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Each fit also tries other recipes (team-form half-life, seasons of
+      # history) on the most recent games and only switches when one wins,
+      # keeps the old coefficients if the refit fails a sanity check, skips
+      # when no games have finished since the last fit (the offseason), and
+      # logs every run to data/tracking/model_history.json. See
+      # src/model_guard.py. A manual run forces a refit.
       - name: Fit + validate game model coefficients
+        env:
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: python src/fit_model.py
 
       - name: Fit + validate props model coefficients
@@ -58,6 +66,7 @@ jobs:
         continue-on-error: true
         env:
           CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: python src/fit_cfb_model.py
 
       - name: Commit updated coefficients
@@ -65,6 +74,7 @@ jobs:
           git config user.name "nfl-edge-bot"
           git config user.email "actions@github.com"
           git add src/models/fitted_coefficients.json src/models/fitted_props_coefficients.json src/models/fitted_cfb_coefficients.json
+          [ -f data/tracking/model_history.json ] && git add data/tracking/model_history.json
           git diff --cached --quiet && exit 0
           git commit -m "Refit model coefficients against latest historical data"
           git pull --rebase origin main

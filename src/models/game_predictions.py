@@ -96,7 +96,10 @@ def load_team_stats():
 def load_upcoming_games():
     schedules = pd.read_csv(os.path.join(RAW_DIR, "schedules.csv"))
     upcoming = schedules[schedules["result"].isna()]
-    return upcoming
+    # A game from a past season with no result (cancelled, never made up)
+    # isn't upcoming - without this it would sort ahead of the real next week.
+    recent = (pd.Timestamp.now() - pd.Timedelta(days=14)).strftime("%Y-%m-%d")
+    return upcoming[upcoming["gameday"].astype(str).str[:10] >= recent]
 
 def load_vegas_odds():
     odds_path = os.path.join(RAW_DIR, "odds.csv")
