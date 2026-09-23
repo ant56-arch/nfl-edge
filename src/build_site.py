@@ -46,6 +46,10 @@ DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "dist")
 
 DASH = "-"
 
+# MLB Edge is a separate site (github.com/ant56-arch/mlb-hit-predictor) that
+# shares this look; the sport switcher links out to it.
+MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/index.html"
+
 # Per-sport configuration - every page-building function below takes a
 # `sport` dict as its first argument and reads file paths / display text
 # from it, instead of the module-level constants this file used before it
@@ -261,7 +265,7 @@ def page_shell(sport, title, active_tab, body_html):
         + ('class="sport-tab active" aria-current="page">' if s["slug"] == sport["slug"] else 'class="sport-tab">')
         + f'{s["wordmark"]}</a>'
         for s in SPORTS.values()
-    )
+    ) + f'<a href="{MLB_EDGE_URL}" class="sport-tab">MLB</a>'
 
     now = datetime.now(timezone.utc)
     generated = now.strftime("%b %d, %Y %H:%M UTC")
@@ -763,7 +767,7 @@ def root_page_shell(title, body_html):
     <div class="masthead-row">
       <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
       <nav class="sport-switcher" aria-label="Sport">
-        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>
+        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a><a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>
       </nav>
     </div>
   </header>
