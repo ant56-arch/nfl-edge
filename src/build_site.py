@@ -44,7 +44,7 @@ TRACKING_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "tracking")
 WEB_SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "web")
 DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "dist")
 
-DASH = "—"
+DASH = "-"
 
 # Per-sport configuration - every page-building function below takes a
 # `sport` dict as its first argument and reads file paths / display text
@@ -54,7 +54,7 @@ SPORTS = {
     "nfl": {
         "slug": "nfl",
         "wordmark": "NFL",
-        "tagline": "Model-driven spreads, totals &amp; props - graded against the closing line every week.",
+        "tagline": "Model-driven NFL spreads, totals and player props, graded against the closing line every week.",
         "meta_description": "Model-driven NFL spreads, totals and player props, validated against the closing Vegas line every week.",
         "team_csv": "teams.csv",
         "team_abbr_col": "team_abbr", "team_color_col": "team_color", "team_color2_col": "team_color2", "team_logo_col": "team_logo_espn",
@@ -72,7 +72,7 @@ SPORTS = {
     "cfb": {
         "slug": "cfb",
         "wordmark": "CFB",
-        "tagline": "Model-driven spreads &amp; totals for Power-conference college football - graded against the closing line every week.",
+        "tagline": "Model-driven spreads and totals for Power-conference college football, graded against the closing line every week.",
         "meta_description": "Model-driven college football spreads and totals for the Power conferences, validated against the closing Vegas line every week.",
         "team_csv": "cfb_teams.csv",
         "team_abbr_col": "team", "team_short_col": "abbreviation", "team_color_col": "color", "team_color2_col": "alt_color", "team_logo_col": "logo",
@@ -87,18 +87,6 @@ SPORTS = {
         "data_source_text": "Team efficiency (PPA, success rate, explosiveness) via CollegeFootballData.com. Vegas lines via the-odds-api.com, where available. Covers SEC, Big Ten, Big 12, ACC and FBS independent teams.",
         "no_games_note": "Covers Power-conference and independent FBS teams only.",
     },
-}
-
-# Minimal hand-drawn line icons (24x24, currentColor stroke) for card headers -
-# avoids pulling in an icon font/library for a handful of glyphs.
-ICONS = {
-    "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
-    "target": '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
-    "bars": '<line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="7"/><line x1="19" y1="20" x2="19" y2="14"/><line x1="3" y1="20.5" x2="21" y2="20.5"/>',
-    "clock": '<circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/>',
-    "trend": '<polyline points="4,17 10,11 14,15 20,7"/><polyline points="14,7 20,7 20,13"/>',
-    "shield": '<path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/>',
-    "user": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',
 }
 
 # Fallback only, used if a sport's team CSV (fetched fresh each run) isn't
@@ -141,25 +129,19 @@ def team_short(sport, name):
     return team_info(sport).get(name, {}).get("short", name)
 
 def matchup_bar(sport, away, home, right_html):
-    """A single wide cell replacing separate Matchup/Kickoff columns: both
-    teams' logos, and a soft gradient background fading from the away team's
-    color to the home team's - real branding instead of plain text, with
-    `right_html` (kickoff time, or a HIT/MISS once graded) anchored right."""
-    away_color, home_color = team_color(sport, away), team_color(sport, home)
+    """A single cell replacing separate Matchup/Kickoff columns: both teams'
+    logos and short names, with `right_html` (kickoff time, or the final
+    score once graded) anchored right."""
     away_logo, home_logo = team_logo(sport, away), team_logo(sport, home)
     away_label, home_label = team_short(sport, away), team_short(sport, home)
     away_img = f'<img class="team-logo" src="{away_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if away_logo else ""
     home_img = f'<img class="team-logo" src="{home_logo}" alt="" loading="lazy" onerror="this.style.display=\'none\'">' if home_logo else ""
-    gradient = f"linear-gradient(90deg, {away_color}26 0%, transparent 42%, transparent 58%, {home_color}26 100%)"
-    return f"""<div class="matchup-bar">
-      <div class="matchup-fade" style="background:{gradient};"></div>
-      <div class="matchup-content">
+    return f"""<div class="matchup-content">
         <span class="matchup-team">{away_img}<span>{away_label}</span></span>
         <span class="matchup-at">@</span>
         <span class="matchup-team">{home_img}<span>{home_label}</span></span>
-        <span class="matchup-right muted mono">{right_html}</span>
-      </div>
-    </div>"""
+        <span class="matchup-right">{right_html}</span>
+      </div>"""
 
 def model_pick(row):
     """The pure, unblended model's own call for a game - favored team, margin,
@@ -176,10 +158,6 @@ def model_pick(row):
         "win_pct": win_pct,
         "total": row["model_total"],
     }
-
-def icon(name):
-    return (f'<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-            f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{ICONS[name]}</svg>')
 
 _ASSET_VERSION = None
 
@@ -255,8 +233,8 @@ def pill(text, style):
 
 FAVICON = ('data:image/svg+xml,'
     '%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E'
-    '%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%23111827%22/%3E'
-    '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23c2410c%22/%3E'
+    '%3Crect width=%2232%22 height=%2232%22 fill=%22%23121314%22/%3E'
+    '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23e5793b%22/%3E'
     '%3C/svg%3E')
 
 def page_shell(sport, title, active_tab, body_html):
@@ -293,19 +271,17 @@ def page_shell(sport, title, active_tab, body_html):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title} - {sport["wordmark"]} Edge</title>
+<title>{title} | {sport["wordmark"]} Edge</title>
 <meta name="description" content="{sport["meta_description"]}">
 <link rel="icon" href="{FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css?v={ver}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to main content</a>
-<div class="topbar"></div>
-<div class="hero-glow" aria-hidden="true"></div>
 <div class="wrap">
   <header class="masthead">
     <div class="masthead-row">
@@ -324,43 +300,35 @@ def page_shell(sport, title, active_tab, body_html):
   {body_html}
   </main>
   <footer class="site-footer">
-    <div class="footer-grid">
-      <div class="footer-col">
-        <div class="footer-heading">The Model</div>
-        <p>A coefficients-fit efficiency model blended with the live market line, weights validated on held-out seasons - not a gut feeling with a spreadsheet attached.</p>
-      </div>
-      <div class="footer-col">
-        <div class="footer-heading">Data &amp; Sources</div>
-        <p>{sport["data_source_text"]}</p>
-      </div>
-      <div class="footer-col">
-        <div class="footer-heading">Disclaimer</div>
-        <p>For entertainment and research only. Not betting advice - past accuracy does not guarantee future results.</p>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <span class="footer-brand">{sport["wordmark"]} <span>EDGE</span></span>
-      <span>&copy; {now.year} - rebuilt from real results every week.</span>
-    </div>
+    <div class="footer-brand">{sport["wordmark"]} <span>Edge</span></div>
+    <p class="footer-text">Our model's lines come from team efficiency stats, with weights fit on past seasons and
+      checked against seasons it wasn't fit on. {sport["data_source_text"]}</p>
+    <p class="footer-text">For entertainment and research only. This is not betting advice, and past results don't
+      predict future ones. If gambling is a problem for you or someone you know, call 1-800-GAMBLER.</p>
+    <nav class="footer-links" aria-label="Site">
+      <a href="../terms.html">Terms of Use</a>
+      <a href="../privacy.html">Privacy Policy</a>
+      <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
+      <span>&copy; {now.year} {sport["wordmark"]} Edge. Updated from final scores every week.</span>
+    </nav>
   </footer>
 </div>
 <script src="../site.js?v={ver}"></script>
 </body>
 </html>"""
 
-def card(title, subtitle, body_html, icon_name=None):
+def card(title, subtitle, body_html):
     sub = f'<div class="subtitle">{subtitle}</div>' if subtitle else ""
-    badge = f'<div class="card-icon-badge">{icon(icon_name)}</div>' if icon_name else ""
-    return f"""<div class="card">
-    <div class="card-header">{badge}<div><h2>{title}</h2>{sub}</div></div>
+    return f"""<section class="card">
+    <div class="card-header"><h2>{title}</h2>{sub}</div>
     <div class="card-body">{body_html}</div>
-  </div>"""
+  </section>"""
 
 def render_week_table(week_games):
     """Renders one week's worth of normalized game dicts (the shape produced
     by assemble_season_weeks) as a table - shared by the Home page (current
     week only) and Teams' per-week view. Each row shows the real matchup bar
-    (logos + team-color gradient) and, once a game is graded, a HIT/MISS
+    (logos + short names) and, once a game is graded, a HIT/MISS
     result instead of just a kickoff time - so "did we get it right" is
     visible for the games in this week that have already been played."""
     if not week_games:
@@ -374,7 +342,6 @@ def render_week_table(week_games):
         vegas_total_html = (f'<span class="market-color">{g["vegas_total"]:.1f}</span>'
                              if g["vegas_total"] is not None else f'<span class="faint">{DASH}</span>')
         our_line = f"{g['favored_team']} -{g['favored_by']:.1f}"
-        flag = ' row-flag' if (g["graded"] and g["correct"] is False) else ""
         flip_note = f' {pill("DIFFERENT PICK", "danger")}' if disagree else ""
 
         if g["graded"]:
@@ -385,13 +352,13 @@ def render_week_table(week_games):
 
         matchup_sort_value = f"{g['away_team']} @ {g['home_team']}"
 
-        rows += f"""<tr class="{flag.strip()}">
+        rows += f"""<tr>
           <td data-key="matchup" data-value="{matchup_sort_value}">{g['matchup_html']}{flip_note}</td>
-          <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our Pick" class="num mono accent">{our_line}</td>
-          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num mono">{vegas_html}</td>
-          <td data-key="total" data-value="{g['total']:.2f}" data-label="Total (us / vegas)" class="num mono">{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</td>
-          <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num mono">{g['win_pct']:.0%}</td>
-          <td data-label="Result" class="num mono">{result_html}</td>
+          <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our Pick" class="num accent">{our_line}</td>
+          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num">{vegas_html}</td>
+          <td data-key="total" data-value="{g['total']:.2f}" data-label="Total" class="num"><span>{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</span></td>
+          <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num">{g['win_pct']:.0%}</td>
+          <td data-label="Result" class="num"><span>{result_html}</span></td>
         </tr>"""
 
     return f"""<table class="data responsive-stack" data-sortable>
@@ -405,7 +372,7 @@ def render_week_table(week_games):
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} = we favor a different team than Vegas entirely. Click a column header to sort.</div>"""
+    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does. Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -417,55 +384,70 @@ def build_edge_cards(sport, comparison, week_games, max_cards=3):
     notable["sort_key"] = notable["spread_edge"].abs() + notable["picks_flip"].astype(int) * 10
     top = notable.sort_values("sort_key", ascending=False).head(max_cards)
 
-    cards = ""
+    rows = ""
     for _, g in top.iterrows():
         flip = g["model_favored_team"] != g["vegas_favored_team"]
-        flip_line = f'<div class="edge-flip">{pill("DIFFERENT TEAM FAVORED", "danger")}</div>' if flip else ""
+        flip_tag = f' {pill("DIFFERENT PICK", "danger")}' if flip else ""
         away_label, home_label = team_short(sport, g["away_team"]), team_short(sport, g["home_team"])
         model_label, vegas_label = team_short(sport, g["model_favored_team"]), team_short(sport, g["vegas_favored_team"])
-        cards += f"""<div class="edge-card{' edge-card-flip' if flip else ''}">
-          <div class="edge-matchup">{away_label} @ {home_label}</div>
-          <div class="edge-our-line mono">{model_label} -{g['model_favored_by']:.1f} <span class="muted">our model</span></div>
-          <div class="edge-vegas-line mono market-color">{vegas_label} -{abs(g['vegas_home_favored_by']):.1f} <span class="muted">vegas</span></div>
-          {flip_line}
-        </div>"""
+        rows += f"""<tr>
+          <td><b>{away_label} @ {home_label}</b>{flip_tag}</td>
+          <td data-label="Our model" class="num accent">{model_label} -{g['model_favored_by']:.1f}</td>
+          <td data-label="Vegas" class="num market-color">{vegas_label} -{abs(g['vegas_home_favored_by']):.1f}</td>
+          <td data-label="Gap" class="num">{abs(g['spread_edge']):.1f} pts</td>
+        </tr>"""
 
-    return f"""<div class="edge-section">
-      <div class="edge-kicker">Notable Model vs. Market Gaps</div>
-      <div class="edge-grid">{cards}</div>
-    </div>"""
+    table = f"""<table class="data responsive-stack">
+      <thead><tr><th>Matchup</th><th class="num">Our model</th><th class="num">Vegas</th><th class="num">Gap</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+    return card("Biggest Gaps vs. Vegas", "This week's games where our model's line is furthest from the market's", table)
+
+def pct(x):
+    return f"{x:.0%}" if x is not None else DASH
+
+def record_row(label, rec):
+    """One row of a straight-up / against-the-spread record table."""
+    ats = rec.get("ats_record") if rec.get("ats_accuracy") is not None else None
+    return f"""<tr>
+      <td class="row-label">{label}</td>
+      <td data-label="Straight-up" class="num">{rec['record']}</td>
+      <td data-label="Win %" class="num">{pct(rec.get('pick_accuracy'))}</td>
+      <td data-label="Against the spread" class="num">{ats or DASH}</td>
+      <td data-label="Cover %" class="num">{pct(rec.get('ats_accuracy'))}</td>
+      <td data-label="Avg. spread miss" class="num">{rec['spread_mae']:.1f} pts</td>
+    </tr>"""
+
+def record_table(rows_html):
+    return f"""<table class="data record-table responsive-stack">
+      <thead><tr><th></th><th class="num">Straight-up</th><th class="num">Win %</th>
+        <th class="num">Against the spread</th><th class="num">Cover %</th><th class="num">Avg. spread miss</th></tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>"""
 
 def build_top25_block(top25_summary):
     """AP Top 25 teams' Vegas closing-line record since 2024 - a separate,
     much larger historical sample than the CFB tracker's own live history
     (which only starts whenever CFBD_API_KEY was added this season), seeded
     by backfill_cfb_top25.py. Vegas's record, not ours, disclosed as such -
-    same framing as the main Track Record card."""
+    same framing as the main Track Record section."""
     if not top25_summary:
         return ""
     since = top25_summary["since_year"]
-    su_tile = (f'<div class="bento-tile bento-wide tile-market"><div class="label">Straight-Up</div>'
-               f'<div class="value market-color">{top25_summary["record"]}</div></div>')
-    ats_tile = ""
-    if top25_summary.get("ats_accuracy") is not None:
-        ats_tile = (f'<div class="bento-tile bento-wide tile-market"><div class="label">Against the Spread</div>'
-                    f'<div class="value market-color">{top25_summary["ats_record"]}</div></div>')
-    small_tiles = (f'<div class="bento-tile"><div class="value">{top25_summary["n_games"]}</div><div class="label">Games</div></div>'
-                   f'<div class="bento-tile tile-market"><div class="value">&plusmn;{top25_summary["spread_mae"]:.1f}</div><div class="label">Spread Error</div></div>')
-    grid = f'<div class="bento-grid" style="margin-top:10px;">{su_tile}{ats_tile}{small_tiles}</div>'
-    heading = (f'<div class="edge-kicker" style="margin-top:26px;">AP Top 25 &mdash; Vegas Record, {since} to Now</div>')
     poll_note = f" (as of the {top25_summary['poll_season']} week {top25_summary['poll_week']} poll)" if top25_summary.get("poll_week") else ""
-    note = (f"""<div class="table-footnote muted">Vegas's own closing-line record for today's AP Top 25 teams{poll_note},
-      {since} to now - not our model's, and a different (larger, longer) sample than the live tracking above.
-      Straight-up = the favored team won outright. Against the spread (ATS) = the favorite won by more than the
-      spread margin.</div>""")
-    return heading + grid + note
+    table = record_table(record_row(f"{since} to now, {top25_summary['n_games']} games", top25_summary))
+    return f"""<div class="section-label">AP Top 25: Vegas record, {since} to now</div>
+    {table}
+    <div class="table-footnote">Vegas's closing-line record in games involving this week's AP Top 25 teams{poll_note}.
+      This is the betting market's record, not our model's, and it covers more seasons than our live tracking.
+      Straight-up means the favorite won. Against the spread means the favorite won by more than the line.</div>"""
 
 def build_track_record_section(sport, summary, top25_summary=None):
     top25_html = build_top25_block(top25_summary)
+    live_start = sport["live_tracking_start_season"]
     if summary is None:
-        body = '<div class="empty-state">No games graded yet. Check back once the first week wraps.</div>' + top25_html
-        return card("Track Record", "Graded against real final scores, not vibes", body, "target")
+        body = '<div class="empty-state">No games graded yet. Results appear here after the first week is played.</div>' + top25_html
+        return card("Track Record", "Picks graded against final scores", body)
 
     year = summary.get("current_season_year", "")
     since = sport["ats_since_year"]
@@ -479,54 +461,31 @@ def build_track_record_section(sport, summary, top25_summary=None):
 
     if not current:
         body = f'<div class="empty-state">No {year} games graded yet.</div>' + top25_html
-        return card("Track Record", "Graded against real final scores, not vibes", body, "target")
+        return card("Track Record", "Picks graded against final scores", body)
 
-    # A bento grid, not a uniform row of tiles: two hero tiles carry this
-    # season's headline records (straight-up and against the spread side by
-    # side, so they're easy to compare), two wide bars carry the same pair
-    # all-time, and small tiles fill in the supporting numbers underneath.
-    have_ats = current.get("ats_accuracy") is not None
-    hero_su_class = "bento-tile bento-hero" if have_ats else "bento-tile bento-hero bento-hero-full"
-    hero_su = f"""<div class="{hero_su_class}">
-      <div>
-        <div class="hero-label">{year} Straight-Up</div>
-        <div class="hero-number">{current['record']}</div>
-      </div>
-      {pill(f"{current['pick_accuracy']:.0%}", "market")}
-    </div>"""
-    hero_ats = ""
-    if have_ats:
-        hero_ats = f"""<div class="bento-tile bento-hero">
-          <div>
-            <div class="hero-label">{year} Against the Spread</div>
-            <div class="hero-number">{current['ats_record']}</div>
-          </div>
-          {pill(f"{current['ats_accuracy']:.0%}", "market")}
-        </div>"""
+    # A box-score style stat line for this season's headline numbers, then a
+    # plain table comparing this season with the full graded history.
+    stats = [(current["record"], f"{year} straight-up", pct(current.get("pick_accuracy")))]
+    if current.get("ats_accuracy") is not None:
+        stats.append((current["ats_record"], f"{year} against the spread", pct(current.get("ats_accuracy"))))
+    stats.append((str(summary["n_graded_games"]), "Games graded", f"since {since}"))
+    stats.append((str(live_start), "Live tracking since", f"{since}-{live_start - 1} backfilled" if since < live_start else ""))
+    statline = '<div class="statline">' + "".join(
+        f'<div class="stat"><div class="stat-value">{v}</div><div class="stat-label">{label}</div>'
+        f'<div class="stat-sub">{sub}</div></div>'
+        for v, label, sub in stats) + "</div>"
 
-    wide_tiles = ""
+    rows = record_row(f"{year} season", current)
     if all_time:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Straight-Up Since {since}</div><div class="value market-color">{all_time["record"]}</div></div>'
-    if all_time and all_time.get("ats_accuracy") is not None:
-        wide_tiles += f'<div class="bento-tile bento-wide tile-market"><div class="label">Against the Spread Since {since}</div><div class="value market-color">{all_time["ats_record"]}</div></div>'
+        rows += record_row(f"Since {since}", all_time)
 
-    small_tiles = ""
-    if all_time:
-        small_tiles += f'<div class="bento-tile tile-market"><div class="value">&plusmn;{all_time["spread_mae"]:.1f}</div><div class="label">Spread Error</div></div>'
-        if all_time.get("ats_pushes") is not None:
-            small_tiles += f'<div class="bento-tile"><div class="value">{all_time["ats_pushes"]}</div><div class="label">ATS Pushes</div></div>'
-    small_tiles += f"""<div class="bento-tile"><div class="value">{summary['n_graded_games']}</div><div class="label">Games Graded</div></div>
-    <div class="bento-tile"><div class="value">{sport['live_tracking_start_season']}</div><div class="label">Tracking Since</div></div>"""
+    note = f"""<div class="table-footnote">These are Vegas's closing-line results from {since} on, not a separate
+      in-house number. For the straight-up call our displayed pick follows the market, because backtesting found
+      no edge in overriding it. Against the spread is the harder test: the line is set so each side should
+      cover about half the time.</div>"""
 
-    note = (f"""<div class="table-footnote muted">These are Vegas's own closing-line results from {since} onward, not our
-      model's. Our displayed pick defers fully to the market for the straight-up spread call - backtesting found
-      no edge in overriding Vegas there - so this is genuinely what "our pick" follows, shown plainly rather than
-      relabeled as an in-house number. Straight-up = picked the game's actual winner. Against the spread (ATS) =
-      the favorite won by more than the spread margin - the harder, more meaningful bar, since the spread exists
-      specifically to make that a 50/50 proposition.</div>""")
-
-    body = f'<div class="bento-grid">{hero_su}{hero_ats}{wide_tiles}{small_tiles}</div>' + note + top25_html
-    return card("Track Record", f"Vegas's closing-line record, {since} to now ({summary['n_graded_games']} games)", body, "target")
+    body = statline + record_table(rows) + note + top25_html
+    return card("Track Record", f"Vegas's closing-line record, {since} to now", body)
 
 def build_players_page(sport, props):
     def table(stat_cols, cat_id, active):
@@ -549,11 +508,10 @@ def build_players_page(sport, props):
                     badge = " " + pill("SOFT MATCHUP", "positive")
                 elif mult <= 0.92:
                     badge = " " + pill("TOUGH MATCHUP", "danger")
-            cells = "".join(f'<td data-key="{c}" data-value="{p[c]}" data-label="{h}" class="num mono">{p[c]}</td>'
+            cells = "".join(f'<td data-key="{c}" data-value="{p[c]}" data-label="{h}" class="num">{p[c]}</td>'
                             for c, h in zip(stat_cols["display"], stat_cols["headers"]))
-            border = f"border-left:4px solid {team_color(sport, p['team'])};"
             rows += f"""<tr>
-              <td data-key="player" data-value="{p['player_name']}" style="{border}"><b>{p['player_name']}</b>{tag}<div class="muted" style="font-size:11px;">{p['team']} vs {p['opponent']}</div>{badge}</td>
+              <td data-key="player" data-value="{p['player_name']}"><b>{p['player_name']}</b>{tag}<div class="muted" style="font-size:13px;">{p['team']} vs {p['opponent']}</div>{badge}</td>
               {cells}
             </tr>"""
         hidden = "" if active else " hidden"
@@ -572,7 +530,7 @@ def build_players_page(sport, props):
 
     if not (passing or rushing or receiving):
         body = '<div class="empty-state">No player projections available yet.</div>'
-        return page_shell(sport, "Players", "players", card("Player Projections", "Top 20 per category by projected yards", body, "user"))
+        return page_shell(sport, "Players", "players", card("Player Projections", "Top 20 per category by projected yards", body))
 
     subtabs = f"""<div class="subtabs">
       <button type="button" class="subtab active" aria-pressed="true" data-target="cat-passing">Passing</button>
@@ -580,7 +538,7 @@ def build_players_page(sport, props):
       <button type="button" class="subtab" aria-pressed="false" data-target="cat-receiving">Receiving</button>
     </div>"""
     body = subtabs + passing + rushing + receiving
-    card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click or tab to a column header to sort", body, "user")
+    card_html = card("Player Projections", "Top 20 per category by projected yards. Select a column header to sort.", body)
     return page_shell(sport, "Players", "players", card_html)
 
 def build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary=None):
@@ -595,10 +553,10 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
     slate_html = render_week_table(this_week["games"] if this_week else [])
     track_html = build_track_record_section(sport, accuracy_summary, top25_summary)
 
-    subtitle = "Our pick vs. the market, every game this week - hit or miss once played. See the Teams tab for the full season."
+    subtitle = "Our model's pick and the Vegas line for every game this week, graded once played. The Teams tab has the full season."
     if not weeks and sport.get("no_games_note"):
         slate_html = f'<div class="empty-state">No games available yet. {sport["no_games_note"]}</div>'
-    body = edge_html + card(f"This Week's Slate - {week_title}", subtitle, slate_html, "calendar") + track_html
+    body = edge_html + card(f"This Week's Slate: {week_title}", subtitle, slate_html) + track_html
     return page_shell(sport, "Home", "index", body)
 
 WEEK_TYPE_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conf. Championship", "SB": "Super Bowl", "POST": "Postseason"}
@@ -697,20 +655,20 @@ def build_teams_page(sport, games, log, comparison):
 
     if not weeks:
         empty_note = f' {sport["no_games_note"]}' if sport.get("no_games_note") else ""
-        body = card("Teams", f"Every {season} matchup, picked and graded", f'<div class="empty-state">No games available yet.{empty_note}</div>', "shield")
+        body = card("Teams", f"Every {season} matchup, picked and graded", f'<div class="empty-state">No games available yet.{empty_note}</div>')
         return page_shell(sport, "Teams", "teams", body)
 
     week_order = [k for k, _ in sorted(weeks.items(), key=lambda kv: kv[1]["week"])]
     teams_json = json.dumps({"week_order": week_order, "weeks": weeks, "default_week": current_week_key(weeks)})
-    body = card("Teams", f"Every {season} matchup, week 1 through the postseason - picked with our own model, graded once final",
+    body = card("Teams", f"Every {season} matchup from week 1 through the postseason, picked by our model and graded once final",
                 '<select id="teams-week-select" class="week-picker"></select><div id="teams-week-content" style="margin-top:16px;"></div>'
-                f'<script>const TEAMS_DATA = {teams_json};</script>', "shield")
+                f'<script>const TEAMS_DATA = {teams_json};</script>')
     return page_shell(sport, "Teams", "teams", body)
 
 def build_history_page(sport, log):
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
     if graded.empty:
-        body = card("History", "Every graded week, once there's one to show", '<div class="empty-state">No games graded yet.</div>', "clock")
+        body = card("History", "Every graded week, once there's one to show", '<div class="empty-state">No games graded yet.</div>')
         return page_shell(sport, "History", "history", body)
 
     graded = graded.sort_values(["season", "week"])
@@ -734,12 +692,12 @@ def build_history_page(sport, log):
                 "model_pick": pick_str("model_spread"), "model_correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
                 "vegas_pick": pick_str("vegas_home_favored_by"), "vegas_correct": bool(r["vegas_correct_pick"]) if pd.notna(r.get("vegas_correct_pick")) else None,
             })
-        weeks[key] = {"label": f"{int(season)} - Week {int(week)}", "games": games_list}
+        weeks[key] = {"label": f"{int(season)}, Week {int(week)}", "games": games_list}
 
     history_json = json.dumps({"week_order": week_order, "weeks": weeks})
-    body = card("History", "Every graded week - pick a week to see how we did",
+    body = card("History", "Every graded week. Choose a week to see how the picks did.",
                 f'<select id="week-select" class="week-picker"></select><div id="week-content" style="margin-top:16px;"></div>'
-                f'<script>const HISTORY_DATA = {history_json};</script>', "clock")
+                f'<script>const HISTORY_DATA = {history_json};</script>')
     return page_shell(sport, "History", "history", body)
 
 def build_accuracy_page(sport, log):
@@ -749,8 +707,8 @@ def build_accuracy_page(sport, log):
         graded = graded[graded["season"] >= live_start]
     if graded.empty:
         body = card("Accuracy Over Time", "Weekly trend, us vs. the market",
-                     '<div class="empty-state">No live-tracked games graded yet - check back once the '
-                     f'{live_start} season kicks off.</div>', "trend")
+                     '<div class="empty-state">No live-tracked games graded yet. Check back once the '
+                     f'{live_start} season starts.</div>')
         return page_shell(sport, "Accuracy", "accuracy", body)
 
     graded = graded.sort_values(["season", "week"])
@@ -772,25 +730,20 @@ def build_accuracy_page(sport, log):
         "us_brier": weekly["model_brier"].round(4).tolist(), "vegas_brier": weekly["vegas_brier"].round(4).tolist(),
     }
     charts_html = "".join(
-        f'<div class="chart-card" style="margin-bottom:28px;"><canvas id="{cid}" height="90"></canvas></div>'
+        f'<div class="chart-card" data-state="loading"><canvas id="{cid}" height="90"></canvas></div>'
         for cid in ["chart-accuracy", "chart-spread-mae", "chart-brier"]
     )
     body = card("Accuracy Over Time",
-                f"Weekly trend across {int(weekly['n'].sum())} live-picked games ({live_start} season onward) - our model's own picks vs. the market",
-                charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>', "trend")
+                f"Week-by-week results for {int(weekly['n'].sum())} live-picked games since the start of {live_start}: our model's picks against the market",
+                charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>')
     return page_shell(sport, "Accuracy", "accuracy", body)
 
-def build_404_page():
-    body = """<div class="card">
-      <div class="card-body error-body">
-        <div class="error-code mono">404</div>
-        """ + pill("PENALTY - LOSS OF PAGE", "danger") + """
-        <h2>This one got called back.</h2>
-        <p class="muted">The page you're looking for doesn't exist - it might have been moved, renamed,
-        or never existed to begin with.</p>
-        <a class="btn-primary" href="nfl/index.html">Back to Home</a>
-      </div>
-    </div>"""
+LEGAL_EFFECTIVE_DATE = "September 23, 2026"
+
+def root_page_shell(title, body_html):
+    """Shell for the pages that live at the site root rather than under a
+    sport (404, Terms, Privacy) - same masthead and footer links, no sport
+    tabs."""
     ver = asset_version()
     now = datetime.now(timezone.utc)
     return f"""<!DOCTYPE html>
@@ -798,28 +751,127 @@ def build_404_page():
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Page Not Found - NFL Edge</title>
+<title>{title} | NFL Edge</title>
 <link rel="icon" href="{FAVICON}">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v={ver}">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Skip to main content</a>
-<div class="topbar"></div>
-<div class="hero-glow" aria-hidden="true"></div>
 <div class="wrap">
   <header class="masthead">
-    <div class="masthead-row"><div><h1 class="wordmark">NFL <span>EDGE</span></h1></div></div>
+    <div class="masthead-row">
+      <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
+      <nav class="sport-switcher" aria-label="Sport">
+        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>
+      </nav>
+    </div>
   </header>
-  <main id="main-content">
-  {body}
+  <main id="main-content" style="padding-top:32px;">
+  {body_html}
   </main>
   <footer class="site-footer">
-    <div class="footer-bottom"><span class="footer-brand">NFL <span>EDGE</span></span><span>&copy; {now.year}</span></div>
+    <nav class="footer-links" aria-label="Site" style="border-top:none;margin-top:0;padding-top:0;">
+      <a href="terms.html">Terms of Use</a>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
+      <span>&copy; {now.year} NFL Edge</span>
+    </nav>
   </footer>
 </div>
 </body>
 </html>"""
+
+def build_404_page():
+    body = """<div class="error-body">
+        <div class="error-code">404</div>
+        <h1 class="error-title">Page not found</h1>
+        <p>This page doesn't exist. It may have been moved or renamed.</p>
+        <a class="btn-primary" href="nfl/index.html">Go to NFL Edge</a>
+      </div>"""
+    return root_page_shell("Page Not Found", body)
+
+def build_terms_page():
+    body = f"""<article class="prose">
+      <h1 class="page-title">Terms of Use</h1>
+      <p>Effective {LEGAL_EFFECTIVE_DATE}. By using NFL Edge and CFB Edge (together, "this site") you agree to
+        these terms. If you don't agree, please don't use the site.</p>
+
+      <h2>What this site is</h2>
+      <p>This site publishes computer-generated projections for NFL and college football games (spreads,
+        totals, win probabilities and player stats) along with a record of how past projections turned out.
+        It is a free, non-commercial project provided for <strong>entertainment and research only</strong>.</p>
+
+      <h2>Not betting or financial advice</h2>
+      <p>Nothing on this site is a recommendation to place any bet. Projections are estimates and are often
+        wrong, and past results don't predict future ones. You are solely responsible for any decision you
+        make, including any money you wager or lose.</p>
+
+      <h2>Legal age and location</h2>
+      <p>Sports betting is illegal in some places and restricted to adults everywhere it is legal. It is your
+        responsibility to know and follow the laws where you live. If gambling is causing problems for you or
+        someone you know, call or text <strong>1-800-GAMBLER</strong> (US).</p>
+
+      <h2>No warranty</h2>
+      <p>The site and its data are provided "as is", without warranties of any kind. Game data, betting lines
+        and team information come from third-party sources (nflverse, CollegeFootballData.com and
+        the-odds-api.com) and may be late, incomplete or incorrect. The site may change or go offline at any
+        time without notice.</p>
+
+      <h2>Limitation of liability</h2>
+      <p>To the fullest extent allowed by law, the operator of this site is not liable for any loss or damage
+        arising from your use of, or reliance on, the site or its content.</p>
+
+      <h2>Trademarks and affiliation</h2>
+      <p>This site is independent. It is not affiliated with, endorsed by or sponsored by the NFL, the NCAA,
+        any conference, team or sportsbook. Team names and logos are trademarks of their owners and are shown
+        only to identify teams.</p>
+
+      <h2>Changes</h2>
+      <p>These terms may be updated. The effective date above shows when they last changed, and continued use
+        of the site means you accept the current version.</p>
+
+      <h2>Contact</h2>
+      <p>Questions can be raised by opening an issue on the
+        <a href="https://github.com/ant56-arch/nfl-edge/issues">project's GitHub page</a>.</p>
+    </article>"""
+    return root_page_shell("Terms of Use", body)
+
+def build_privacy_page():
+    body = f"""<article class="prose">
+      <h1 class="page-title">Privacy Policy</h1>
+      <p>Effective {LEGAL_EFFECTIVE_DATE}. This site is a static website with no accounts, sign-ups, forms,
+        comments or payments.</p>
+
+      <h2>What we collect</h2>
+      <p><strong>Nothing.</strong> This site sets no cookies, runs no analytics or advertising trackers, and
+        does not ask for or store any personal information.</p>
+
+      <h2>Third parties your browser contacts</h2>
+      <p>Loading a page makes your browser request files from these services, which can see your IP address,
+        browser type and the page that made the request, as any web server does:</p>
+      <ul>
+        <li><strong>GitHub Pages</strong> hosts the site and may keep server logs, including IP addresses, for
+          security and operations. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub Privacy Statement</a>.</li>
+        <li><strong>Google Fonts</strong> serves the site's typefaces. See the
+          <a href="https://developers.google.com/fonts/faq/privacy">Google Fonts privacy FAQ</a>.</li>
+        <li><strong>jsDelivr</strong> serves the charting library on the Accuracy pages. See the
+          <a href="https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net">jsDelivr privacy policy</a>.</li>
+        <li><strong>ESPN's image servers</strong> (a.espncdn.com) serve the team logos.</li>
+      </ul>
+      <p>We don't receive or control the data those services log.</p>
+
+      <h2>Children</h2>
+      <p>This site isn't directed at children and doesn't knowingly collect information from anyone.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, the effective date above will be updated.</p>
+
+      <h2>Contact</h2>
+      <p>Questions can be raised by opening an issue on the
+        <a href="https://github.com/ant56-arch/nfl-edge/issues">project's GitHub page</a>.</p>
+    </article>"""
+    return root_page_shell("Privacy Policy", body)
 
 def build_redirect_page():
     """dist/index.html - a plain redirect to the default sport (NFL) so old
@@ -869,9 +921,11 @@ def main():
         f.write(build_redirect_page())
     print("  Wrote index.html (redirect to nfl/)")
 
-    with open(os.path.join(DIST_DIR, "404.html"), "w") as f:
-        f.write(build_404_page())
-    print("  Wrote 404.html")
+    for filename, html in [("404.html", build_404_page()), ("terms.html", build_terms_page()),
+                           ("privacy.html", build_privacy_page())]:
+        with open(os.path.join(DIST_DIR, filename), "w") as f:
+            f.write(html)
+        print(f"  Wrote {filename}")
 
     for asset in ["style.css", "site.js"]:
         shutil.copy(os.path.join(WEB_SRC_DIR, asset), os.path.join(DIST_DIR, asset))
