@@ -86,8 +86,8 @@ def fetch_rosters(seasons):
         try:
             df = pd.read_csv(url, low_memory=False)
             frames.append(df)
-        except requests.exceptions.HTTPError as e:
-            print(f"  Skipping roster {season}: {e}")
+        except Exception as e:  # pandas raises urllib's HTTPError, not requests'
+            print(f"  Skipping roster {season} (not published yet): {e}")
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 def fetch_current_roster(season):
@@ -103,7 +103,7 @@ def fetch_current_roster(season):
     try:
         df = pd.read_csv(url, low_memory=False)
         return df
-    except requests.exceptions.HTTPError as e:
+    except Exception as e:  # pandas raises urllib's HTTPError, not requests'
         print(f"  Current roster not available yet for {season}: {e}")
         return pd.DataFrame()
 
@@ -135,6 +135,8 @@ def main():
     print("\n[5/5] Current live roster (who's on what team right now)...")
     current_season = current_nfl_season()
     current_roster = fetch_current_roster(current_season)
+    if current_roster.empty:
+        current_roster = fetch_current_roster(current_season - 1)
     if not current_roster.empty:
         current_roster.to_csv(os.path.join(RAW_DIR, "current_roster.csv"), index=False)
         print(f"  Total current roster entries: {len(current_roster):,}")

@@ -30,7 +30,8 @@ os.makedirs(PROCESSED_DIR, exist_ok=True)
 PLAYER_HALF_LIFE_PATH = os.path.join(os.path.dirname(__file__), "models", "fitted_props_coefficients.json")
 DEFAULT_PLAYER_HALF_LIFE = 6  # used only until fit_props_model.py has produced a fitted value
 
-RECENCY_HALF_LIFE_GAMES = 4  # a game 4 weeks ago counts half as much as this week
+RECENCY_HALF_LIFE_GAMES = 4  # a game 4 weeks ago counts half as much as this week (default until fit_model.py picks one)
+TEAM_HALF_LIFE_PATH = os.path.join(os.path.dirname(__file__), "models", "fitted_coefficients.json")
 
 def recency_weight(games_ago, half_life=RECENCY_HALF_LIFE_GAMES):
     """Exponential decay weight: more recent games matter more."""
@@ -41,6 +42,14 @@ def load_player_half_life():
         return DEFAULT_PLAYER_HALF_LIFE
     with open(PLAYER_HALF_LIFE_PATH) as f:
         return json.load(f).get("half_life_games", DEFAULT_PLAYER_HALF_LIFE)
+
+def load_team_half_life(path=TEAM_HALF_LIFE_PATH):
+    """The team-form half-life the weekly refit's recipe search chose (see
+    model_guard.py), so live team stats are built the way the model was fit."""
+    if not os.path.exists(path):
+        return RECENCY_HALF_LIFE_GAMES
+    with open(path) as f:
+        return json.load(f).get("team_half_life_games", RECENCY_HALF_LIFE_GAMES)
 
 def load_pbp():
     path = os.path.join(RAW_DIR, "pbp_combined.parquet")
@@ -268,8 +277,10 @@ def main():
                    "def_rush_epa_allowed", "def_explosive_rate_allowed", "def_third_down_rate_allowed",
                    "def_redzone_td_rate_allowed", "pressure_rate"]
 
-    off_weighted = apply_recency_weighting(off_game_stats, "team", off_metrics)
-    def_weighted = apply_recency_weighting(def_game_stats, "team", def_metrics)
+    team_half_life = load_team_half_life()
+    print(f"  Using team half-life = {team_half_life} games")
+    off_weighted = apply_recency_weighting(off_game_stats, "team", off_metrics, half_life=team_half_life)
+    def_weighted = apply_recency_weighting(def_game_stats, "team", def_metrics, half_life=team_half_life)
 
     team_stats = off_weighted.merge(def_weighted, on="team", suffixes=("", "_def"))
     team_stats.to_csv(os.path.join(PROCESSED_DIR, "team_stats.csv"), index=False)

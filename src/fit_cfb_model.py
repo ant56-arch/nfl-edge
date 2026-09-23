@@ -28,12 +28,30 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(__file__))
 from fetch_cfb_data import fetch_team_info, fetch_games, fetch_lines, fetch_advanced_stats, current_cfb_season, _headers
 from historical_features import compute_walkforward_features
+from build_features import RECENCY_HALF_LIFE_GAMES
+import model_guard as guard
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
 TRAIN_SEASONS_BACK = 5   # seasons of history to pull, ending at the current season
 VALIDATION_SEASONS = 2
 BLEND_GRID = np.round(np.arange(0.0, 1.01, 0.05), 2)
+
+# Recipe search (see model_guard.py): team-form recency half-life (used by
+# build_cfb_features.py for the live stats) and how many seasons to fit on,
+# scored on the most recent RECENT_HOLDOUT_GAMES lined games (about a season).
+RECENT_HOLDOUT_GAMES = 350
+DEFAULT_RECIPE = {"team_half_life": RECENCY_HALF_LIFE_GAMES, "seasons": "all"}
+RECIPES = [{"team_half_life": h, "seasons": n} for h in (2, 4, 8) for n in ("all", 3)]
+COEFFICIENTS_PATH = os.path.join(MODELS_DIR, "fitted_cfb_coefficients.json")
+
+def recipe_name(r):
+    return f"half-life {r['team_half_life']} games, {r['seasons']} seasons"
+
+def window(recipe, dataset):
+    if recipe["seasons"] == "all" or dataset.empty:
+        return dataset
+    return dataset[dataset["season"] > dataset["season"].max() - recipe["seasons"]]
 
 METRICS = ["off_ppa_per_play", "off_success_rate", "off_explosiveness",
            "def_ppa_per_play_allowed", "def_success_rate_allowed", "def_explosiveness_allowed"]
@@ -162,31 +180,9 @@ def evaluate_blend(model_spread, vegas_spread, actual_margin, model_wp, vegas_wp
     best_wp_w = float(grid.loc[grid["brier_score"].idxmin(), "weight_on_model"])
     return grid, best_spread_w, best_wp_w
 
-def run():
-    if _headers() is None:
-        print("CFBD_API_KEY not set - skipping college football model fit. "
-              "Get a free key at https://collegefootballdata.com/key and add it as a repo secret.")
-        return
-
-    current_season = current_cfb_season()
-    seasons = list(range(current_season - TRAIN_SEASONS_BACK, current_season + 1))
-    print(f"Fetching {len(seasons)} seasons of CFB data ({seasons[0]}-{seasons[-1]})...")
-    games, stats = fetch_historical(seasons)
-    if games.empty or stats.empty:
-        print("Not enough CFB data returned to fit a model - aborting.")
-        return
-    print(f"  {len(games)} games, {len(stats)} team-game stat rows")
-
-    print("Computing walk-forward (no-leakage) features...")
-    stats_walk = compute_walkforward_features(stats, METRICS)
-
-    dataset = build_dataset(stats_walk, games)
-    print(f"  {len(dataset)} completed games with usable lines")
-
-    if len(dataset) < 100:
-        print("  Not enough graded games with lines to fit a reliable model yet - aborting.")
-        return
-
+def validate_and_fit(dataset):
+    """Fit on all but the last VALIDATION_SEASONS seasons, pick blend weights
+    on those held-out seasons, then refit on everything."""
     holdout_seasons = sorted(dataset["season"].unique())[-VALIDATION_SEASONS:]
     train = dataset[~dataset["season"].isin(holdout_seasons)]
     validation = dataset[dataset["season"].isin(holdout_seasons)]
@@ -203,7 +199,7 @@ def run():
 
     if val_feats.empty:
         print("  No valid held-out games to evaluate against - aborting.")
-        return
+        return None
 
     from scipy.stats import norm
     model_spread, model_total = model_predict(val_feats, train_coefs)
@@ -246,7 +242,7 @@ def run():
 
     output = {
         "fitted_at": datetime.now(timezone.utc).isoformat(),
-        "train_seasons": [int(s) for s in seasons],
+        "train_seasons": [int(s) for s in sorted(dataset["season"].unique())],
         "n_games_used": final_coefs["n_games"],
         "coefficients": final_coefs,
         "blend_weight_on_model_spread": best_spread_w,
@@ -267,10 +263,69 @@ def run():
         },
     }
 
-    out_path = os.path.join(MODELS_DIR, "fitted_cfb_coefficients.json")
-    with open(out_path, "w") as f:
-        json.dump(output, f, indent=2)
-    print(f"\nSaved fitted CFB coefficients + holdout validation report to {out_path}")
+    return output
+
+def run():
+    if _headers() is None:
+        print("CFBD_API_KEY not set - skipping college football model fit. "
+              "Get a free key at https://collegefootballdata.com/key and add it as a repo secret.")
+        return
+
+    current_season = current_cfb_season()
+    seasons = list(range(current_season - TRAIN_SEASONS_BACK, current_season + 1))
+    print(f"Fetching {len(seasons)} seasons of CFB data ({seasons[0]}-{seasons[-1]})...")
+    games, stats = fetch_historical(seasons)
+    if games.empty or stats.empty:
+        print("Not enough CFB data returned to fit a model - aborting.")
+        return
+    print(f"  {len(games)} games, {len(stats)} team-game stat rows")
+
+    datasets = {}
+
+    def dataset_for(recipe):
+        """Completed lined games with walk-forward (no-leakage) features at
+        this recipe's half-life."""
+        hl = recipe["team_half_life"]
+        if hl not in datasets:
+            datasets[hl] = build_dataset(compute_walkforward_features(stats, METRICS, half_life=hl), games)
+        return datasets[hl]
+
+    live = guard.load_json(COEFFICIENTS_PATH)
+    live_recipe = live.get("recipe", DEFAULT_RECIPE)
+    base = dataset_for(live_recipe)
+    print(f"  {len(base)} completed games with usable lines")
+    if len(base) < 100:
+        print("  Not enough graded games with lines to fit a reliable model yet - aborting.")
+        return
+    if guard.nothing_new(live, base):
+        print(f"No games since the live model's last fit ({live['trained_through']}) - keeping it.")
+        return
+
+    print(f"\nScoring recipes on the most recent {RECENT_HOLDOUT_GAMES} games (each fit only on earlier games)...")
+    chosen, report = guard.search(RECIPES, live_recipe, dataset_for, window, fit_margin_and_total, make_features,
+                                  model_predict, RECENT_HOLDOUT_GAMES, recipe_name)
+    dataset = window(chosen, dataset_for(chosen))
+    print(f"\nRecipe: {recipe_name(chosen)}{' (switched)' if report['switched'] else ''}")
+
+    output = validate_and_fit(dataset)
+    if output is None:
+        return
+    trained_through = guard.latest_gameday(dataset)
+    output.update({"recipe": chosen, "team_half_life_games": chosen["team_half_life"],
+                   "trained_through": trained_through})
+    ok, why, new, live_score = guard.deploy_ok(output["coefficients"], live.get("coefficients"), live_recipe, chosen,
+                                               dataset_for, make_features, model_predict, report["keys"])
+    if ok:
+        with open(COEFFICIENTS_PATH, "w") as f:
+            json.dump(output, f, indent=2)
+        print(f"\nSaved fitted CFB coefficients + holdout validation report to {COEFFICIENTS_PATH}")
+    reason = why or ("new recipe beat the live one on recent games" if report["switched"]
+                     else "kept the recipe, refit with the newest games")
+    guard.log_run("cfb", live_recipe, report, ok, reason, new, live_score, trained_through,
+                  {"holdout_validation": output["holdout_validation"]})
+    guard.summary([f"### CFB game model refit ({trained_through})",
+                   f"- Recipe: {'switched to ' if report['switched'] else 'kept '}{recipe_name(chosen)}",
+                   f"- Deployed: {'yes' if ok else 'no - ' + why}"])
 
 if __name__ == "__main__":
     run()

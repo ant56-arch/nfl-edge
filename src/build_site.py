@@ -567,8 +567,24 @@ def build_players_page(sport, props):
     card_html = card("Player Projections", "Top 20 per category by projected yards. Select a column header to sort.", body)
     return page_shell(sport, "Players", "players", card_html)
 
+def display_season(sport, games, log):
+    """The season the Home and Teams pages show, so the site rolls over to a
+    new season on its own: the season of the next game still to play (ignoring
+    stale rows for old games that never got a result, like a cancelled game),
+    else the latest season with a graded game."""
+    if not games.empty and "season" in games.columns:
+        upcoming = games
+        if "gameday" in games.columns:
+            cutoff = (datetime.now(timezone.utc) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+            upcoming = games[games["gameday"].astype(str).str[:10] >= cutoff]
+        if not upcoming.empty:
+            return int(upcoming["season"].min())
+    if not log.empty and "actual_margin" in log.columns and log["actual_margin"].notna().any():
+        return int(log.loc[log["actual_margin"].notna(), "season"].max())
+    return sport["live_tracking_start_season"]
+
 def build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary=None):
-    season = sport["live_tracking_start_season"]
+    season = display_season(sport, games, log)
     weeks = assemble_season_weeks(sport, games, log, comparison, season)
     this_week_key = current_week_key(weeks)
     this_week = weeks.get(this_week_key) if this_week_key else None
@@ -676,7 +692,7 @@ def current_week_key(weeks):
     return ordered[0][0] if ordered else None
 
 def build_teams_page(sport, games, log, comparison):
-    season = sport["live_tracking_start_season"]
+    season = display_season(sport, games, log)
     weeks = assemble_season_weeks(sport, games, log, comparison, season)
 
     if not weeks:
@@ -914,11 +930,12 @@ def build_summary(sport, games, log, comparison, accuracy_summary):
     """<sport>/summary.json - the current week's three most confident model
     picks (games not yet played first) and the same season record the Track
     Record card leads with, for this sport's card on the home page."""
-    weeks = assemble_season_weeks(sport, games, log, comparison, sport["live_tracking_start_season"])
+    weeks = assemble_season_weeks(sport, games, log, comparison, display_season(sport, games, log))
     key = current_week_key(weeks)
     summary = {"updated": datetime.now(timezone.utc).isoformat(), "heading": None, "picks": [], "record": None,
                "empty": ("No games available yet. " + sport["no_games_note"]).strip()}
-    if key:
+    # Offseason (every game graded): no picks, rather than last season's.
+    if key and any(not g["graded"] for g in weeks[key]["games"]):
         week = weeks[key]
         summary["heading"] = week["label"]
         top = sorted(week["games"], key=lambda g: (g["graded"], -g["win_pct"]))[:3]
