@@ -392,7 +392,9 @@ def run():
     reason = why or ("new recipe beat the live one on recent games" if report["switched"]
                      else "kept the recipe, refit with the newest games")
     guard.log_run("nfl", live_recipe, report, ok, reason, new, live_score, trained_through,
-                  {"holdout_validation": output["holdout_validation"]})
+                  {"holdout_validation": output["holdout_validation"],
+                   "weights_before": guard.weights_snapshot(live),
+                   "weights_after": guard.weights_snapshot(output if ok else live)})
     guard.summary([f"### NFL game model refit ({trained_through})",
                    f"- Recipe: {'switched to ' if report['switched'] else 'kept '}{recipe_name(chosen)}",
                    f"- Deployed: {'yes' if ok else 'no - ' + why}"])

@@ -343,6 +343,9 @@ nav.tabs {
   scrollbar-width: none;
 }
 .tabs-inner::-webkit-scrollbar { display: none; }
+.tabs-inner.fade-right { -webkit-mask-image: linear-gradient(to right, #000 80%, transparent); mask-image: linear-gradient(to right, #000 80%, transparent); }
+.tabs-inner.fade-left { -webkit-mask-image: linear-gradient(to left, #000 80%, transparent); mask-image: linear-gradient(to left, #000 80%, transparent); }
+.tabs-inner.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); }
 
 nav.tabs a {
   flex-shrink: 0;
@@ -771,6 +774,30 @@ footer.site-footer {
   .stat { padding: 14px 14px 12px 16px; }
   .stat-value { font-size: 38px; }
   .score-cell { min-width: 150px; }
+}
+
+/* ---------- Model tab (model_page.py) ---------- */
+
+.setup-list { list-style: none; margin: 0; padding: 0; }
+.setup-list li { padding: 8px 0; border-bottom: 1px solid var(--rule); color: var(--text); }
+.setup-list li:last-child { border-bottom: none; }
+.setup-label { display: inline-block; min-width: 150px; font-weight: 700; color: var(--text-muted); }
+.trend-chart { display: block; width: 100%; height: auto; margin-top: 18px; }
+.trend-line { fill: none; stroke: var(--ours); stroke-width: 3; }
+.trend-dot { fill: var(--ours); }
+.trend-value { fill: var(--text); font-family: var(--font-head); font-size: 16px; font-weight: 700; }
+.trend-label { fill: var(--text-muted); font-size: 12px; }
+.change-flat { color: var(--text-faint); }
+.change-move { color: var(--text); font-weight: 600; white-space: nowrap; }
+.factor-note { font-size: 13px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+table.retrain-log td.why-cell { white-space: normal; min-width: 200px; color: var(--text-muted); }
+.model-tiles .stat-value { font-size: 40px; }
+@media (max-width: 700px) {
+  .setup-label { display: block; min-width: 0; }
+  .model-tiles .stat-value { font-size: 28px; }
+  table.responsive-stack.retrain-log tbody tr,
+  table.responsive-stack.factor-table tbody tr { grid-template-columns: 1fr; }
+  table.retrain-log td.why-cell { min-width: 0; }
 }
 
 /* Phones: the sport tabs drop to their own row under the brand, spread

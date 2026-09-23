@@ -34,6 +34,7 @@ dist/ directory - the workflow's own steps upload and deploy it.
 
 import pandas as pd
 import numpy as np
+import model_page
 import json
 import os
 import shutil
@@ -66,6 +67,7 @@ SPORTS = {
         "predictions_log_csv": "predictions_log.csv",
         "accuracy_summary_json": "accuracy_summary.json",
         "top25_summary_json": None,
+        "coefficients_json": "fitted_coefficients.json",
         "live_tracking_start_season": 2026,
         "ats_since_year": 2024,
         "data_source_text": "Play-by-play and schedules via nflverse. Vegas lines via DraftKings, through the-odds-api.com, where available.",
@@ -84,6 +86,7 @@ SPORTS = {
         "predictions_log_csv": "cfb_predictions_log.csv",
         "accuracy_summary_json": "cfb_accuracy_summary.json",
         "top25_summary_json": "cfb_top25_summary.json",
+        "coefficients_json": "fitted_cfb_coefficients.json",
         "live_tracking_start_season": 2026,
         "ats_since_year": 2026,
         "data_source_text": "Team efficiency (PPA, success rate, explosiveness) via CollegeFootballData.com. Vegas lines via the-odds-api.com, where available. Covers SEC, Big Ten, Big 12, ACC and FBS independent teams.",
@@ -276,6 +279,7 @@ def page_shell(sport, title, active_tab, body_html):
     tabs += [
         ("history.html", "history", "History"),
         ("accuracy.html", "accuracy", "Accuracy"),
+        ("model.html", "model", "Model"),
     ]
     nav = "".join(
         f'<a href="{href}" class="active" aria-current="page">{label}</a>' if tab == active_tab
@@ -926,6 +930,113 @@ def build_redirect_page():
 </body>
 </html>"""
 
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+
+# Factor labels for the Model tab: (label, note, scale, format). Rate gaps are
+# fractions in the fit, so they're shown per 0.1 (ten percentage points).
+FACTOR_LABELS = {
+    "epa_diff_coef": ("Play efficiency gap (EPA)", "points of margin per 0.1 EPA per play", 0.1, "pts"),
+    "ppa_diff_coef": ("Play efficiency gap (PPA)", "points of margin per 0.1 PPA per play", 0.1, "pts"),
+    "third_down_weight": ("Third-down conversion gap", "points per 10-point gap in third-down rate", 0.1, "pts"),
+    "redzone_weight": ("Red-zone touchdown gap", "points per 10-point gap in red-zone TD rate", 0.1, "pts"),
+    "explosive_weight": ("Explosive-play gap", "points per 10-point gap in explosive-play rate", 0.1, "pts"),
+    "sack_weight": ("Sack rate gap", "points per 10-point gap in sack rate", 0.1, "pts"),
+    "success_rate_weight": ("Success rate gap", "points per 10-point gap in success rate", 0.1, "pts"),
+    "explosiveness_weight": ("Explosiveness gap", "points per 0.1 gap in explosiveness", 0.1, "pts"),
+    "home_field_advantage": ("Home field", "points for the home team", 1, "pts"),
+    "margin_std_dev": ("Game-to-game swing", "how many points results typically miss by", 1, "plain"),
+    "blend_weight_on_model_winprob": ("Model's say in the win chance", "the rest comes from the Vegas line", 1, "share"),
+    "blend_weight_on_model_spread": ("Model's say in the spread", "the rest comes from the Vegas line", 1, "share"),
+    "blend_weight_on_model_total": ("Model's say in the total", "the rest comes from the Vegas line", 1, "share"),
+}
+
+def next_weekly(weekday, hour_utc):
+    """The next time a weekly UTC cron (weekday: Monday=0) fires, as UTC."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    d = now.replace(hour=hour_utc, minute=0, second=0, microsecond=0)
+    d += timedelta(days=(weekday - d.weekday()) % 7)
+    return d if d > now else d + timedelta(days=7)
+
+def load_model_runs(sport):
+    path = os.path.join(TRACKING_DIR, "model_history.json")
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [r for r in json.load(f).get("runs", []) if r.get("sport") == sport["slug"]]
+
+def load_coefficients(sport):
+    path = os.path.join(MODELS_DIR, sport["coefficients_json"])
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+def build_model_page(sport):
+    model = load_coefficients(sport)
+    runs = list(reversed(load_model_runs(sport)))
+    rows = []
+    for r in runs:
+        label, tone = model_page.decision(r)
+        chosen = r["best_candidate"] if r.get("switched_recipe") else (r.get("current_recipe_refit_on_holdout") or r["best_candidate"])
+        rows.append({
+            "date": model_page.short_date(r["run_at"]), "data_through": model_page.short_date(r.get("data_through")),
+            "tested": len(r.get("candidates", [])), "decision": label, "tone": tone, "reason": r["reason"].capitalize() + ".",
+            "before": (r.get("live_model_on_holdout") or {}).get("accuracy"),
+            "after": chosen.get("accuracy") if r.get("deployed") else None,
+        })
+    last = runs[0] if runs else {}
+    now_w = model_page_weights(model)
+    before_w = last.get("weights_before") or {}
+    factors = []
+    for key, (label, note, scale, kind) in FACTOR_LABELS.items():
+        if key not in now_w:
+            continue
+        fmt = ((lambda v: f"{v:.0%}") if kind == "share" else (lambda v: f"{v:+.1f} pts") if kind == "pts"
+               else (lambda v: f"{v:.1f} pts"))
+        factors.append({"label": label, "note": note, "now": now_w[key] * scale,
+                        "before": before_w[key] * scale if key in before_w else None, "fmt": fmt})
+    recipe = model.get("recipe", {})
+    seasons = model.get("train_seasons", [])
+    since = (f"every season since {seasons[0]}" if recipe.get("seasons") == "all" and seasons
+             else f"the last {recipe.get('seasons')} seasons" if recipe.get("seasons") else "all past seasons")
+    half = recipe.get("team_half_life")
+    nxt = next_weekly(1, 10)
+    trained = model.get("fitted_at")
+    spec = {
+        "intro": "Every Tuesday it checks itself against the newest games and only changes when a new version "
+                 "clearly predicts better.",
+        "tiles": [
+            (model_page.short_date(trained)[:-6] if trained else DASH, "Last retrained",
+             f"games through {model_page.short_date(model.get('trained_through'))}" if model.get("trained_through") else ""),
+            (f"{model.get('n_games_used', 0):,}", "Games learned from", f"{seasons[0]} to {seasons[-1]}" if seasons else ""),
+            (nxt.strftime("%b %-d"), "Next check", "Tuesday morning, every week"),
+            (rows[0]["decision"].split(" ")[0] if rows else DASH, "Last decision",
+             f"{rows[0]['tested']} versions tested" if rows else "no retrains yet"),
+        ],
+        "setup": [
+            ("Learns from:", since),
+            ("Team form:", f"recent games count most - a game's weight halves every {half} games" if half
+             else "every game this season counts the same"),
+            ("Sharp line:", "blends the model with the Vegas line; the last rows below show how much say the model gets"),
+            ("Retrains:", "Tuesdays, only when new games have been played; in the offseason it waits"),
+        ],
+        "runs": rows,
+        "score_name": "Picked right",
+        "score_fmt": lambda v: f"{v:.1%}",
+        "higher_better": True,
+        "factors": factors,
+        "factors_note": "Points are how much each factor moves the predicted margin toward the team that has the "
+                        "edge in it. Before is the model that was live until the last retrain.",
+        "empty": "No retrains logged yet. The first one runs on the next Tuesday after new games.",
+    }
+    return page_shell(sport, "Model", "model", model_page.render(spec))
+
+def model_page_weights(model):
+    out = dict(model.get("coefficients", {}))
+    out.update({k: v for k, v in model.items() if k.startswith("blend_weight_on_")})
+    return out
+
 def build_summary(sport, games, log, comparison, accuracy_summary):
     """<sport>/summary.json - the current week's three most confident model
     picks (games not yet played first) and the same season record the Track
@@ -933,7 +1044,8 @@ def build_summary(sport, games, log, comparison, accuracy_summary):
     weeks = assemble_season_weeks(sport, games, log, comparison, display_season(sport, games, log))
     key = current_week_key(weeks)
     summary = {"updated": datetime.now(timezone.utc).isoformat(), "heading": None, "picks": [], "record": None,
-               "empty": ("No games available yet. " + sport["no_games_note"]).strip()}
+               "empty": ("No games available yet. " + sport["no_games_note"]).strip(),
+               "retrained": load_coefficients(sport).get("fitted_at"), "model_url": "model.html"}
     # Offseason (every game graded): no picks, rather than last season's.
     if key and any(not g["graded"] for g in weeks[key]["games"]):
         week = weeks[key]
@@ -961,6 +1073,7 @@ def build_sport_pages(sport):
         "teams.html": build_teams_page(sport, games, log, comparison),
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
+        "model.html": build_model_page(sport),
     }
     if sport["player_props_csv"]:
         pages["players.html"] = build_players_page(sport, props)

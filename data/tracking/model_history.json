@@ -115,6 +115,36 @@
     "model_only_brier": 0.21935958737022324,
     "vegas_only_brier": 0.21157485032094053,
     "blended_brier": 0.21128001973849886
+   },
+   "weights_before": {
+    "epa_diff_coef": 52.7274,
+    "third_down_weight": 9.9772,
+    "redzone_weight": -1.3556,
+    "explosive_weight": 15.7353,
+    "sack_weight": -20.5547,
+    "home_field_advantage": 1.9414,
+    "margin_std_dev": 13.3338,
+    "total_coef": 33.1024,
+    "total_intercept": 46.0842,
+    "total_std_dev": 13.6734,
+    "blend_weight_on_model_spread": 0.0,
+    "blend_weight_on_model_winprob": 0.15,
+    "blend_weight_on_model_total": 0.2
+   },
+   "weights_after": {
+    "epa_diff_coef": 52.7274,
+    "third_down_weight": 9.9772,
+    "redzone_weight": -1.3556,
+    "explosive_weight": 15.7353,
+    "sack_weight": -20.5547,
+    "home_field_advantage": 1.9414,
+    "margin_std_dev": 13.3338,
+    "total_coef": 33.1024,
+    "total_intercept": 46.0842,
+    "total_std_dev": 13.6734,
+    "blend_weight_on_model_spread": 0.0,
+    "blend_weight_on_model_winprob": 0.15,
+    "blend_weight_on_model_total": 0.2
    }
   },
   {
@@ -232,6 +262,32 @@
     "model_only_brier": 0.21481263806121376,
     "vegas_only_brier": 0.1998770007703518,
     "blended_brier": 0.1992204934879616
+   },
+   "weights_before": {
+    "ppa_diff_coef": 84.5539,
+    "success_rate_weight": -6.028,
+    "explosiveness_weight": -5.6422,
+    "home_field_advantage": 1.8656,
+    "margin_std_dev": 16.9409,
+    "total_coef": 41.9391,
+    "total_intercept": 43.6359,
+    "total_std_dev": 16.1232,
+    "blend_weight_on_model_spread": 0.05,
+    "blend_weight_on_model_winprob": 0.15,
+    "blend_weight_on_model_total": 0.2
+   },
+   "weights_after": {
+    "ppa_diff_coef": 84.5539,
+    "success_rate_weight": -6.028,
+    "explosiveness_weight": -5.6422,
+    "home_field_advantage": 1.8656,
+    "margin_std_dev": 16.9409,
+    "total_coef": 41.9391,
+    "total_intercept": 43.6359,
+    "total_std_dev": 16.1232,
+    "blend_weight_on_model_spread": 0.05,
+    "blend_weight_on_model_winprob": 0.15,
+    "blend_weight_on_model_total": 0.2
    }
   }
  ]

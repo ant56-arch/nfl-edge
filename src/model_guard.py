@@ -126,6 +126,16 @@ def deploy_ok(new_coefs, live_coefs, live_recipe, chosen_recipe, dataset_for, ma
     return True, "", new, live
 
 
+def weights_snapshot(model):
+    """The fitted coefficients plus how far the pick leans on the model vs. the
+    market, rounded - saved before and after each refit for the site's Model tab."""
+    if not model or not model.get("coefficients"):
+        return None
+    out = {k: v for k, v in model["coefficients"].items() if k != "n_games"}
+    out.update({k: v for k, v in model.items() if k.startswith("blend_weight_on_")})
+    return {k: round(v, 4) for k, v in out.items() if isinstance(v, (int, float))}
+
+
 def log_run(sport, current, report, deployed, reason, new, live, trained_through, extra=None):
     history = load_json(HISTORY_PATH) or {"runs": []}
     rnd = lambda s: {k: round(v, 4) if isinstance(v, float) else v for k, v in s.items()} if s else None  # noqa: E731

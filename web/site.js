@@ -274,3 +274,23 @@ async function initScoreboard() {
   board.hidden = false;
 }
 initScoreboard();
+
+// --- Section tabs on narrow screens ---
+// When the tabs don't fit (phones), scroll the current one into view and fade
+// whichever edge has more tabs hidden past it, so it's clear the row swipes.
+function initSectionTabs() {
+  const row = document.querySelector(".tabs-inner");
+  if (!row) return;
+  const active = row.querySelector("a.active");
+  if (active && row.scrollWidth > row.clientWidth) {
+    row.scrollLeft = active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
+  }
+  const edges = () => {
+    row.classList.toggle("fade-left", row.scrollLeft > 4);
+    row.classList.toggle("fade-right", row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
+  };
+  edges();
+  row.addEventListener("scroll", edges, { passive: true });
+  window.addEventListener("resize", edges);
+}
+initSectionTabs();
