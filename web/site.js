@@ -197,7 +197,8 @@ initCharts();
 // --- Scoreboard strip (shared by every Edge site) ---
 // Fills <div class="scoreboard"> under the top bar with the latest games in
 // every sport, ESPN style: live games first, then what's next, then recent
-// finals, each with our pick. Each site's build publishes games.json (ESPN's
+// finals, each with our pick; a game opens the Schedule tab (schedule.html
+// and schedule.js on the home site). Each site's build publishes games.json (ESPN's
 // current slate plus our picks) next to its summary.json; the strip then asks
 // ESPN for fresh scores in the browser, refreshes every minute while a game is
 // live, and keeps the published file if ESPN can't be reached. If no sport has
@@ -206,13 +207,13 @@ initCharts();
 // and web/site.js (mlb-hit-predictor).
 const EDGE_SITES = [
   { sport: "NFL", summary: "/nfl-edge/nfl/summary.json", games: "/nfl-edge/nfl/games.json",
-    href: "/nfl-edge/nfl/index.html", schedule: "/nfl-edge/nfl/schedule.html" },
+    href: "/nfl-edge/nfl/index.html", schedule: "/schedule.html#nfl" },
   { sport: "CFB", summary: "/nfl-edge/cfb/summary.json", games: "/nfl-edge/cfb/games.json",
-    href: "/nfl-edge/cfb/index.html", schedule: "/nfl-edge/cfb/schedule.html" },
+    href: "/nfl-edge/cfb/index.html", schedule: "/schedule.html#cfb" },
   { sport: "MLB", summary: "/mlb-hit-predictor/summary.json", games: "/mlb-hit-predictor/games.json",
-    href: "/mlb-hit-predictor/", schedule: "/mlb-hit-predictor/schedule.html" },
+    href: "/mlb-hit-predictor/", schedule: "/schedule.html#mlb" },
   { sport: "NBA", summary: "/mlb-hit-predictor/nba/summary.json", games: "/mlb-hit-predictor/nba/games.json",
-    href: "/mlb-hit-predictor/nba/index.html", schedule: "/mlb-hit-predictor/nba/schedule.html" },
+    href: "/mlb-hit-predictor/nba/index.html", schedule: "/schedule.html#nba" },
 ];
 const EDGE_GAMES_PER_SPORT = 16;
 
@@ -257,14 +258,17 @@ function edgeParseEspn(ev) {
     const t = c.team || {};
     const rank = (c.curatedRank || {}).current;
     const score = c.score === undefined || c.score === "" ? null : Number(c.score);
+    const record = (c.records || []).find(r => !r.type || r.type === "total");
+    const probable = ((c.probables || [])[0] || {}).athlete;
     return { abbr: t.abbreviation || "", short: t.shortDisplayName || t.name || "", logo: t.logo || "",
              rank: rank >= 1 && rank <= 25 ? rank : null, score: Number.isFinite(score) ? score : null,
-             winner: !!c.winner };
+             winner: !!c.winner, record: record ? record.summary : null,
+             probable: probable ? probable.shortName : null };
   };
   const tv = [];
   (comp.broadcasts || []).forEach(b => (b.names || []).forEach(n => { if (!tv.includes(n)) tv.push(n); }));
   return { id: String(ev.id), start: ev.date, state: type.state || "pre", detail: type.shortDetail || type.detail || "",
-           tv: tv.slice(0, 2).join(", "), away: team(sides.away), home: team(sides.home) };
+           tv: tv.slice(0, 2).join(", "), neutral: !!comp.neutralSite, away: team(sides.away), home: team(sides.home) };
 }
 
 async function edgeLoadGames(site) {

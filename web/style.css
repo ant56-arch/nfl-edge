@@ -790,7 +790,7 @@ footer.site-footer {
 .game-score { font-family: var(--font-head); font-size: 17px; font-weight: 700; }
 .game-pick { color: var(--ours); font-weight: 600; }
 
-/* ---------- Schedule tab (games.py) ---------- */
+/* ---------- Schedule tab (schedule.js on the home site) ---------- */
 
 .sched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .sched-game {
@@ -820,6 +820,39 @@ footer.site-footer {
   border-top: 1px solid var(--rule); font-size: 13px; }
 .sched-pick-label { color: var(--text-faint); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
 .sched-pick-text { color: var(--ours); font-weight: 700; flex: 1; }
+
+/* TV grid: a row per start time, a column per network (schedule.js). */
+.tv-grid { display: flex; flex-direction: column; gap: 8px; }
+.tv-row { display: grid; grid-template-columns: 92px repeat(var(--tv-cols, 1), minmax(0, 1fr)); gap: 8px; align-items: start; }
+.tv-head { position: sticky; top: 48px; z-index: 5; padding: 6px 0; background: var(--surface); border-bottom: 1px solid var(--rule); }
+.tv-net, .tv-head .tv-time { font-family: var(--font-head); font-size: 15px; font-weight: 700; letter-spacing: 0.6px;
+  text-transform: uppercase; color: var(--vegas); }
+.tv-head .tv-time { color: var(--text-faint); }
+.tv-time { padding-top: 10px; font-family: var(--font-head); font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.tv-cell { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tv-empty { min-height: 1px; }
+.tv-grid:not(.is-list) .sched-tv { display: none; }
+.tv-grid.is-list .tv-row { grid-template-columns: 1fr; }
+.tv-grid.is-list .tv-time { padding-top: 0; }
+.tv-grid.is-list .tv-cell { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.tv-row:not(.tv-head) { padding-top: 10px; border-top: 1px solid var(--rule); }
+.tv-row:not(.tv-head):first-child { border-top: none; }
+.tv-grid .sched-game { padding: 10px 12px; }
+.tv-grid .sched-name { font-size: 14px; }
+.tv-grid .sched-logo { width: 24px; height: 24px; }
+.tv-grid:not(.is-list) .sched-sep { display: none; }
+.tv-grid:not(.is-list) .sched-game { gap: 4px; }
+/* Too narrow for network columns: each time slot becomes a label over its
+   games as cards, each card naming its network. */
+@media (max-width: 900px) {
+  .tv-head { display: none; }
+  .tv-row, .tv-grid:not(.is-list) .tv-row { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .tv-row .tv-time { grid-column: 1 / -1; font-size: 15px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-muted); }
+  .tv-grid:not(.is-list) .tv-cell { display: contents; }
+  .tv-grid.is-list .tv-cell { grid-column: 1 / -1; }
+  .tv-empty { display: none; }
+  .tv-grid:not(.is-list) .sched-tv { display: inline; }
+}
 
 /* ---------- Model tab (model_page.py) ---------- */
 
@@ -857,7 +890,8 @@ table.retrain-log td.why-cell { white-space: normal; min-width: 200px; color: va
     padding: 0 6px;
     border-top: 1px solid var(--rule);
   }
-  .sport-tab { min-height: 44px; }
+  .sport-tab { min-height: 44px; padding: 0 6px; font-size: 15px; letter-spacing: 0.3px; }
+  .sport-tab::after { left: 4px; right: 4px; }
   .tabs-inner { gap: 18px; }
   nav.tabs a { font-size: 16px; }
 }

@@ -248,8 +248,12 @@ FAVICON = ('data:image/svg+xml,'
 # switcher links out to them after the NFL and CFB tabs.
 MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/"
 NBA_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/nba/index.html"
+# Every sport's games as a TV grid, on the home site (schedule.js there reads
+# the games.json each sport publishes).
+SCHEDULE_URL = "https://ant56-arch.github.io/schedule.html"
 OTHER_SPORT_TABS = (f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
-                 f'<a class="sport-tab" href="{NBA_EDGE_URL}">NBA</a>')
+                 f'<a class="sport-tab" href="{NBA_EDGE_URL}">NBA</a>'
+                 f'<a class="sport-tab" href="{SCHEDULE_URL}">Schedule</a>')
 # The home page (github.com/ant56-arch/ant56-arch.github.io) links every site
 # and shows each one's summary.json; the switcher's first tab goes back to it.
 HOME_URL = "https://ant56-arch.github.io/"
@@ -274,7 +278,6 @@ def page_shell(sport, title, active_tab, body_html):
     tabs = [
         ("index.html", "index", "Home"),
         ("teams.html", "teams", "Teams"),
-        ("schedule.html", "schedule", "Schedule"),
     ]
     if sport["player_props_csv"]:
         tabs.append(("players.html", "players", "Players"))
@@ -1096,16 +1099,6 @@ def attach_game_picks(sport, slate, games, log, comparison):
                           "result": match["correct"] if match["graded"] and eg["state"] == "post" else None}
     return slate
 
-def build_schedule_page(sport, slate):
-    if sport["slug"] == "cfb":
-        empty = "No Top 25 games on this week's schedule yet."
-        note = "Games with a Top 25 team (AP poll), times and TV from ESPN. Our pick shows for games between teams we cover."
-    else:
-        empty = "No games on this week's schedule yet."
-        note = "Times and TV from ESPN."
-    body = games_mod.render(slate, card, "Our pick", empty, note)
-    return page_shell(sport, "Schedule", "schedule", body)
-
 def build_sport_pages(sport):
     print(f"Loading {sport['wordmark']} data...")
     games, props, comparison, accuracy_summary, log, top25_summary = load_data(sport)
@@ -1114,7 +1107,6 @@ def build_sport_pages(sport):
     pages = {
         "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary),
         "teams.html": build_teams_page(sport, games, log, comparison),
-        "schedule.html": build_schedule_page(sport, slate),
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
         "model.html": build_model_page(sport),
