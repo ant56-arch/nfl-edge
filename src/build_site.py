@@ -239,10 +239,13 @@ FAVICON = ('data:image/svg+xml,'
     '%3Cpath d=%22M9 23V9h3.4l6.6 9.3V9H22v14h-3.4L12 13.6V23z%22 fill=%22%23e5793b%22/%3E'
     '%3C/svg%3E')
 
-# MLB Edge is a separate site (github.com/ant56-arch/mlb-hit-predictor) that
-# shares this look; the sport switcher links out to it as a third tab.
+# MLB Edge and NBA Edge are separate sites (both built in
+# github.com/ant56-arch/mlb-hit-predictor) that share this look; the sport
+# switcher links out to them after the NFL and CFB tabs.
 MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/"
-MLB_SPORT_TAB = f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
+NBA_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/nba/index.html"
+OTHER_SPORT_TABS = (f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
+                 f'<a class="sport-tab" href="{NBA_EDGE_URL}">NBA</a>')
 # The home page (github.com/ant56-arch/ant56-arch.github.io) links every site
 # and shows each one's summary.json; the switcher's first tab goes back to it.
 HOME_URL = "https://ant56-arch.github.io/"
@@ -272,7 +275,7 @@ def page_shell(sport, title, active_tab, body_html):
         + ('class="sport-tab active" aria-current="page">' if s["slug"] == sport["slug"] else 'class="sport-tab">')
         + f'{s["wordmark"]}</a>'
         for s in SPORTS.values()
-    ) + MLB_SPORT_TAB
+    ) + OTHER_SPORT_TABS
 
     now = datetime.now(timezone.utc)
     generated = now.strftime("%b %d, %Y %H:%M UTC")
@@ -775,7 +778,7 @@ def root_page_shell(title, body_html):
     <div class="masthead-row">
       <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
       <nav class="sport-switcher" aria-label="Sport">
-        {HOME_SPORT_TAB}<a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{MLB_SPORT_TAB}
+        {HOME_SPORT_TAB}<a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{OTHER_SPORT_TABS}
       </nav>
     </div>
   </header>
