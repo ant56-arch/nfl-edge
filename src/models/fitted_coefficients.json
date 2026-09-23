@@ -1,5 +1,5 @@
 {
-  "fitted_at": "2026-09-22T14:24:42.145717+00:00",
+  "fitted_at": "2026-09-23T04:19:34.881287+00:00",
   "train_seasons": [
     2013,
     2014,
@@ -18,12 +18,12 @@
   ],
   "n_games_used": 3364,
   "coefficients": {
-    "epa_diff_coef": 52.727384411244195,
-    "third_down_weight": 9.977221500700795,
-    "redzone_weight": -1.3555704124935009,
-    "explosive_weight": 15.73532242308353,
-    "sack_weight": -20.554672155200926,
-    "home_field_advantage": 1.9414203401631207,
+    "epa_diff_coef": 52.7273844112442,
+    "third_down_weight": 9.97722150070079,
+    "redzone_weight": -1.3555704124934982,
+    "explosive_weight": 15.735322423083522,
+    "sack_weight": -20.554672155200922,
+    "home_field_advantage": 1.941420340163118,
     "margin_std_dev": 13.333751343444732,
     "total_coef": 33.102369974212614,
     "total_intercept": 46.08415310565611,
@@ -39,7 +39,7 @@
       2026
     ],
     "n_games": 317,
-    "model_only_spread_mae": 10.334143300317557,
+    "model_only_spread_mae": 10.334143300317558,
     "vegas_only_spread_mae": 9.861198738170348,
     "blended_spread_mae": 9.861198738170348,
     "model_only_total_mae": 10.833328016985336,
@@ -47,6 +47,12 @@
     "blended_total_mae": 10.487819221275268,
     "model_only_brier": 0.21935958737022324,
     "vegas_only_brier": 0.21157485032094053,
-    "blended_brier": 0.21128001973849883
-  }
+    "blended_brier": 0.21128001973849886
+  },
+  "recipe": {
+    "team_half_life": 4,
+    "seasons": "all"
+  },
+  "team_half_life_games": 4,
+  "trained_through": "2026-09-21"
 }
