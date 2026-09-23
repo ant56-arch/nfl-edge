@@ -934,7 +934,8 @@ def build_summary(sport, games, log, comparison, accuracy_summary):
     key = current_week_key(weeks)
     summary = {"updated": datetime.now(timezone.utc).isoformat(), "heading": None, "picks": [], "record": None,
                "empty": ("No games available yet. " + sport["no_games_note"]).strip()}
-    if key:
+    # Offseason (every game graded): no picks, rather than last season's.
+    if key and any(not g["graded"] for g in weeks[key]["games"]):
         week = weeks[key]
         summary["heading"] = week["label"]
         top = sorted(week["games"], key=lambda g: (g["graded"], -g["win_pct"]))[:3]
