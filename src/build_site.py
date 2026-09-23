@@ -34,6 +34,7 @@ dist/ directory - the workflow's own steps upload and deploy it.
 
 import pandas as pd
 import numpy as np
+import games as games_mod
 import model_page
 import json
 import os
@@ -273,6 +274,7 @@ def page_shell(sport, title, active_tab, body_html):
     tabs = [
         ("index.html", "index", "Home"),
         ("teams.html", "teams", "Teams"),
+        ("schedule.html", "schedule", "Schedule"),
     ]
     if sport["player_props_csv"]:
         tabs.append(("players.html", "players", "Players"))
@@ -1064,13 +1066,55 @@ def build_summary(sport, games, log, comparison, accuracy_summary):
                              "sub": pct(current.get("pick_accuracy"))}
     return summary
 
+# nflverse team codes that differ from ESPN's.
+ESPN_NFL_CODES = {"LA": "LAR", "WAS": "WSH"}
+
+def attach_game_picks(sport, slate, games, log, comparison):
+    """Each ESPN game gets the model's pick from this season's weeks, matched
+    on both teams (ESPN abbreviation, or school name for CFB)."""
+    weeks = assemble_season_weeks(sport, games, log, comparison, display_season(sport, games, log))
+
+    def keys(code):
+        short = team_short(sport, code)
+        return {str(code).upper(), str(short).upper(), ESPN_NFL_CODES.get(code, code).upper()}
+
+    picks = []
+    for wk in weeks.values():
+        if slate.get("week") and wk["week"] != slate["week"]:
+            continue
+        for g in wk["games"]:
+            picks.append((keys(g["away_team"]), keys(g["home_team"]), g))
+
+    def espn_keys(t):
+        return {t["abbr"].upper(), t["location"].upper(), t["short"].upper()}
+
+    for eg in slate["games"]:
+        a, h = espn_keys(eg["away"]), espn_keys(eg["home"])
+        match = next((g for ak, hk, g in picks if ak & a and hk & h), None)
+        if match:
+            eg["pick"] = {"text": f"{match['favored_team']} -{match['favored_by']:.1f}, {match['win_pct']:.0%}",
+                          "result": match["correct"] if match["graded"] and eg["state"] == "post" else None}
+    return slate
+
+def build_schedule_page(sport, slate):
+    if sport["slug"] == "cfb":
+        empty = "No Top 25 games on this week's schedule yet."
+        note = "Games with a Top 25 team (AP poll), times and TV from ESPN. Our pick shows for games between teams we cover."
+    else:
+        empty = "No games on this week's schedule yet."
+        note = "Times and TV from ESPN."
+    body = games_mod.render(slate, card, "Our pick", empty, note)
+    return page_shell(sport, "Schedule", "schedule", body)
+
 def build_sport_pages(sport):
     print(f"Loading {sport['wordmark']} data...")
     games, props, comparison, accuracy_summary, log, top25_summary = load_data(sport)
+    slate = attach_game_picks(sport, games_mod.load(sport["slug"]), games, log, comparison)
 
     pages = {
         "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary),
         "teams.html": build_teams_page(sport, games, log, comparison),
+        "schedule.html": build_schedule_page(sport, slate),
         "history.html": build_history_page(sport, log),
         "accuracy.html": build_accuracy_page(sport, log),
         "model.html": build_model_page(sport),
@@ -1087,6 +1131,8 @@ def build_sport_pages(sport):
     with open(os.path.join(out_dir, "summary.json"), "w") as f:
         json.dump(build_summary(sport, games, log, comparison, accuracy_summary), f, indent=1)
     print(f"  Wrote {sport['slug']}/summary.json")
+    games_mod.write_json(os.path.join(out_dir, "games.json"), sport["slug"], slate,
+                         datetime.now(timezone.utc).isoformat())
 
 def main():
     print("Building site...")
