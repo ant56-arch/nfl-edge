@@ -11,6 +11,8 @@ independently browsable and linkable:
                   teams only, same modeling approach (see fit_cfb_model.py)
   dist/index.html - a plain redirect to nfl/index.html so old bookmarks/links
                   to the site root keep working with NFL as the default sport
+  dist/<sport>/summary.json - this week's top picks and the season record,
+                  read by the home page linking every site (ant56-arch.github.io)
 
 Pages per sport (see SPORTS below for which apply to which sport):
   index.html    - Home: notable model-vs-market gaps, track record, and this
@@ -241,6 +243,10 @@ FAVICON = ('data:image/svg+xml,'
 # shares this look; the sport switcher links out to it as a third tab.
 MLB_EDGE_URL = "https://ant56-arch.github.io/mlb-hit-predictor/"
 MLB_SPORT_TAB = f'<a class="sport-tab" href="{MLB_EDGE_URL}">MLB</a>'
+# The home page (github.com/ant56-arch/ant56-arch.github.io) links every site
+# and shows each one's summary.json; the switcher's first tab goes back to it.
+HOME_URL = "https://ant56-arch.github.io/"
+HOME_SPORT_TAB = f'<a class="sport-tab" href="{HOME_URL}">All</a>'
 
 def page_shell(sport, title, active_tab, body_html):
     tabs = [
@@ -261,7 +267,7 @@ def page_shell(sport, title, active_tab, body_html):
 
     other_slug = "cfb" if sport["slug"] == "nfl" else "nfl"
     other_page = active_tab + ".html" if active_tab else "index.html"
-    sport_switcher = "".join(
+    sport_switcher = HOME_SPORT_TAB + "".join(
         f'<a href="{"../" + s["slug"] + "/" + other_page if s["slug"] != sport["slug"] else "#"}" '
         + ('class="sport-tab active" aria-current="page">' if s["slug"] == sport["slug"] else 'class="sport-tab">')
         + f'{s["wordmark"]}</a>'
@@ -313,6 +319,7 @@ def page_shell(sport, title, active_tab, body_html):
     <nav class="footer-links" aria-label="Site">
       <a href="../terms.html">Terms of Use</a>
       <a href="../privacy.html">Privacy Policy</a>
+      <a href="{HOME_URL}">All sites</a>
       <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
       <span>&copy; {now.year} {sport["wordmark"]} Edge. Updated from final scores every week.</span>
     </nav>
@@ -768,7 +775,7 @@ def root_page_shell(title, body_html):
     <div class="masthead-row">
       <a class="wordmark" href="nfl/index.html" style="text-decoration:none;">NFL <span>Edge</span></a>
       <nav class="sport-switcher" aria-label="Sport">
-        <a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{MLB_SPORT_TAB}
+        {HOME_SPORT_TAB}<a class="sport-tab" href="nfl/index.html">NFL</a><a class="sport-tab" href="cfb/index.html">CFB</a>{MLB_SPORT_TAB}
       </nav>
     </div>
   </header>
@@ -779,6 +786,7 @@ def root_page_shell(title, body_html):
     <nav class="footer-links" aria-label="Site" style="border-top:none;margin-top:0;padding-top:0;">
       <a href="terms.html">Terms of Use</a>
       <a href="privacy.html">Privacy Policy</a>
+      <a href="{HOME_URL}">All sites</a>
       <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
       <span>&copy; {now.year} NFL Edge</span>
     </nav>
@@ -895,6 +903,31 @@ def build_redirect_page():
 </body>
 </html>"""
 
+def build_summary(sport, games, log, comparison, accuracy_summary):
+    """<sport>/summary.json - the current week's three most confident model
+    picks (games not yet played first) and the same season record the Track
+    Record card leads with, for this sport's card on the home page."""
+    weeks = assemble_season_weeks(sport, games, log, comparison, sport["live_tracking_start_season"])
+    key = current_week_key(weeks)
+    summary = {"updated": datetime.now(timezone.utc).isoformat(), "heading": None, "picks": [], "record": None,
+               "empty": ("No games available yet. " + sport["no_games_note"]).strip()}
+    if key:
+        week = weeks[key]
+        summary["heading"] = week["label"]
+        top = sorted(week["games"], key=lambda g: (g["graded"], -g["win_pct"]))[:3]
+        summary["picks"] = [{
+            "label": f"{team_short(sport, g['away_team'])} @ {team_short(sport, g['home_team'])}",
+            "sub": f"{g['win_pct']:.0%} to win",
+            "value": f"{g['favored_team']} -{g['favored_by']:.1f}",
+            "result": g["correct"] if g["graded"] else None,
+        } for g in top]
+    current = (accuracy_summary or {}).get("current_season", {}).get("vegas")
+    if current:
+        summary["record"] = {"value": current["record"],
+                             "label": f"{accuracy_summary.get('current_season_year', '')} straight-up".strip(),
+                             "sub": pct(current.get("pick_accuracy"))}
+    return summary
+
 def build_sport_pages(sport):
     print(f"Loading {sport['wordmark']} data...")
     games, props, comparison, accuracy_summary, log, top25_summary = load_data(sport)
@@ -914,6 +947,9 @@ def build_sport_pages(sport):
         with open(os.path.join(out_dir, filename), "w") as f:
             f.write(html)
         print(f"  Wrote {sport['slug']}/{filename}")
+    with open(os.path.join(out_dir, "summary.json"), "w") as f:
+        json.dump(build_summary(sport, games, log, comparison, accuracy_summary), f, indent=1)
+    print(f"  Wrote {sport['slug']}/summary.json")
 
 def main():
     print("Building site...")
