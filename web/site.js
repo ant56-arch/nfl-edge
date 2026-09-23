@@ -4,11 +4,22 @@
 function makeSortable(table) {
   const tbody = table.tBodies[0];
   table.querySelectorAll("th[data-sort-key]").forEach((th, colIndex) => {
+    // Keyboard-operable like a real button: focusable, activates on
+    // Enter/Space, and announces its current sort direction.
+    th.tabIndex = 0;
+    th.setAttribute("aria-sort", "none");
+    th.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
+    });
     th.addEventListener("click", () => {
       const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => !r.classList.contains("day-header"));
       const asc = !th.classList.contains("sorted-asc");
-      table.querySelectorAll("th").forEach(h => h.classList.remove("sorted-asc", "sorted-desc"));
+      table.querySelectorAll("th").forEach(h => {
+        h.classList.remove("sorted-asc", "sorted-desc");
+        if (h.hasAttribute("aria-sort")) h.setAttribute("aria-sort", "none");
+      });
       th.classList.add(asc ? "sorted-asc" : "sorted-desc");
+      th.setAttribute("aria-sort", asc ? "ascending" : "descending");
 
       const key = th.dataset.sortKey;
       const isNumeric = th.classList.contains("num");
@@ -117,8 +128,12 @@ function initSubtabs() {
   document.querySelectorAll(".subtabs").forEach(bar => {
     bar.querySelectorAll(".subtab").forEach(btn => {
       btn.addEventListener("click", () => {
-        bar.querySelectorAll(".subtab").forEach(b => b.classList.remove("active"));
+        bar.querySelectorAll(".subtab").forEach(b => {
+          b.classList.remove("active");
+          b.setAttribute("aria-pressed", "false");
+        });
         btn.classList.add("active");
+        btn.setAttribute("aria-pressed", "true");
         const targetId = btn.dataset.target;
         document.querySelectorAll(".cat-panel").forEach(panel => {
           panel.hidden = panel.id !== targetId;

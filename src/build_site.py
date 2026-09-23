@@ -271,7 +271,8 @@ def page_shell(sport, title, active_tab, body_html):
         ("accuracy.html", "accuracy", "Accuracy"),
     ]
     nav = "".join(
-        f'<a href="{href}" class="{"active" if tab == active_tab else ""}">{label}</a>'
+        f'<a href="{href}" class="active" aria-current="page">{label}</a>' if tab == active_tab
+        else f'<a href="{href}">{label}</a>'
         for href, tab, label in tabs
     )
 
@@ -279,7 +280,8 @@ def page_shell(sport, title, active_tab, body_html):
     other_page = active_tab + ".html" if active_tab else "index.html"
     sport_switcher = "".join(
         f'<a href="{"../" + s["slug"] + "/" + other_page if s["slug"] != sport["slug"] else "#"}" '
-        f'class="sport-tab{" active" if s["slug"] == sport["slug"] else ""}">{s["wordmark"]}</a>'
+        + ('class="sport-tab active" aria-current="page">' if s["slug"] == sport["slug"] else 'class="sport-tab">')
+        + f'{s["wordmark"]}</a>'
         for s in SPORTS.values()
     )
 
@@ -296,28 +298,31 @@ def page_shell(sport, title, active_tab, body_html):
 <link rel="icon" href="{FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css?v={ver}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="topbar"></div>
 <div class="hero-glow" aria-hidden="true"></div>
 <div class="wrap">
   <header class="masthead">
     <div class="masthead-row">
       <div>
-        <div class="wordmark">{sport["wordmark"]} <span>EDGE</span></div>
+        <h1 class="wordmark">{sport["wordmark"]} <span>EDGE</span></h1>
         <div class="tagline">{sport["tagline"]}</div>
       </div>
       <div class="masthead-right">
-        <div class="sport-switcher">{sport_switcher}</div>
+        <nav class="sport-switcher" aria-label="Sport">{sport_switcher}</nav>
         <div class="updated-chip">Updated {generated}</div>
       </div>
     </div>
   </header>
-  <nav class="tabs">{nav}</nav>
+  <nav class="tabs" aria-label="Sections">{nav}</nav>
+  <main id="main-content">
   {body_html}
+  </main>
   <footer class="site-footer">
     <div class="footer-grid">
       <div class="footer-col">
@@ -570,12 +575,12 @@ def build_players_page(sport, props):
         return page_shell(sport, "Players", "players", card("Player Projections", "Top 20 per category by projected yards", body, "user"))
 
     subtabs = f"""<div class="subtabs">
-      <button class="subtab active" data-target="cat-passing">Passing</button>
-      <button class="subtab" data-target="cat-rushing">Rushing</button>
-      <button class="subtab" data-target="cat-receiving">Receiving</button>
+      <button type="button" class="subtab active" aria-pressed="true" data-target="cat-passing">Passing</button>
+      <button type="button" class="subtab" aria-pressed="false" data-target="cat-rushing">Rushing</button>
+      <button type="button" class="subtab" aria-pressed="false" data-target="cat-receiving">Receiving</button>
     </div>"""
     body = subtabs + passing + rushing + receiving
-    card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click a column to sort", body, "user")
+    card_html = card("Player Projections", "Top 20 per category by projected yards - the colored bar is the player's team, click or tab to a column header to sort", body, "user")
     return page_shell(sport, "Players", "players", card_html)
 
 def build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary=None):
@@ -795,17 +800,20 @@ def build_404_page():
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Page Not Found - NFL Edge</title>
 <link rel="icon" href="{FAVICON}">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v={ver}">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="topbar"></div>
 <div class="hero-glow" aria-hidden="true"></div>
 <div class="wrap">
   <header class="masthead">
-    <div class="masthead-row"><div><div class="wordmark">NFL <span>EDGE</span></div></div></div>
+    <div class="masthead-row"><div><h1 class="wordmark">NFL <span>EDGE</span></h1></div></div>
   </header>
+  <main id="main-content">
   {body}
+  </main>
   <footer class="site-footer">
     <div class="footer-bottom"><span class="footer-brand">NFL <span>EDGE</span></span><span>&copy; {now.year}</span></div>
   </footer>
