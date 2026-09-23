@@ -1,741 +1,530 @@
 /*
 NFL Edge / CFB Edge site stylesheet.
-Dark, sportsbook-grade theme: near-black surfaces, a vivid orange signature
-accent for our own numbers, bright cyan for market/Vegas data, and reserved
-green/red for genuinely good/bad signals - saturated enough to read as
-"alive" against black, restrained enough that the accent still means
-something when it shows up (used for the numbers that matter, not
-decoration). Validated as a categorical pair with the dataviz skill's
-validate_palette.js.
 
-Type + accessibility rules follow the typeui.sh fundamentals
-(github.com/bergside/typeui): a condensed display face (Oswald, from its
-"Power" style) for headings and headline numbers - scoreboard energy
-without touching body readability; Inter for UI copy; JetBrains Mono for
-tabular data. Every text color clears WCAG AA 4.5:1 on every surface,
-spacing sits on a 4px grid, every interactive element has a visible
-:focus-visible ring, and motion is dropped under prefers-reduced-motion.
+A flat stat-sheet look, closer to a newspaper agate page or a box score than
+a startup landing page: one dark neutral surface, hairline rules instead of
+boxes, square corners, no gradients, glows, blur, drop shadows or motion.
+Type is Barlow (body, with tabular figures for every number column) and
+Barlow Condensed (headings and headline numbers) - a highway-signage family
+that reads as sports without leaning on a mono/"terminal" face.
+
+Color is information, never decoration: orange marks our model's numbers,
+steel blue marks Vegas's, green/red only ever mean hit/miss. All four are
+muted rather than neon, and every text color clears WCAG AA (4.5:1) on both
+surfaces. Keyboard focus is always visible; spacing is on a 4px grid.
 */
 
 :root {
-  --page-bg: #0a0b0f;
-  --card-bg: #15171e;
-  --card-bg-2: #1b1e27;
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-border-strong: rgba(255, 255, 255, 0.16);
-  --row-alt-bg: rgba(255, 255, 255, 0.025);
-  --row-hover-bg: rgba(255, 255, 255, 0.05);
-  --text-primary: #f5f6f8;
-  --text-muted: #98a1b0;
-  --text-faint: #848c9b; /* 4.9:1 on the lightest surface - was 2.8:1 */
+  --bg: #121314;
+  --surface: #1a1b1d;
+  --rule: #2b2d31;
+  --rule-strong: #45484e;
+  --text: #ecebe7;
+  --text-muted: #a8a7a1;
+  --text-faint: #8f8e88;
 
-  --primary: #ff6a1a;
-  --primary-2: #ffab5c;
-  --primary-tint: rgba(255, 106, 26, 0.15);
-  --market: #22d3ee;
-  --market-tint: rgba(34, 211, 238, 0.14);
-  --danger: #ff5468;
-  --danger-tint: rgba(255, 84, 104, 0.14);
-  --positive: #34e0a1;
-  --positive-tint: rgba(52, 224, 161, 0.14);
+  --ours: #e5793b;
+  --vegas: #8db4d8;
+  --hit: #6cbf84;
+  --miss: #e2665f;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-  --shadow-glow: 0 0 0 1px rgba(255, 106, 26, 0.2), 0 10px 30px rgba(255, 106, 26, 0.15);
-  --radius-lg: 20px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
-
-  --font-head: 'Oswald', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
-  --focus-ring: var(--market);
-  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, 'Courier New', monospace;
+  --font: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --font-head: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   margin: 0;
-  background: var(--page-bg);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }
-
-::selection { background: var(--primary); color: #10110a; }
 
 a { color: inherit; }
+::selection { background: var(--ours); color: var(--bg); }
 
-/* One consistent, instant (never animated) focus ring on every interactive
-   element - keyboard only, via :focus-visible. Cyan clears 9:1 against
-   every surface. */
 a:focus-visible, button:focus-visible, select:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--vegas);
   outline-offset: 2px;
-  transition: none;
 }
-table.data th[tabindex]:focus-visible { outline-offset: -2px; border-radius: 4px; }
+table.data th[tabindex]:focus-visible { outline-offset: -2px; }
 
-/* Skip link: first focusable element on every page, off-screen until a
-   keyboard user tabs to it. */
 .skip-link {
   position: absolute;
   left: 16px;
   top: -60px;
   z-index: 100;
   padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: #14151a;
-  font-weight: 800;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
   font-size: 14px;
   text-decoration: none;
 }
 .skip-link:focus { top: 12px; }
 
-.topbar {
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary), #ff2f6e 50%, var(--market));
-}
-
-/* Soft blurred color blobs behind the header only - a bit of depth/energy
-   without turning the whole page into a gradient. Fixed + negative z-index
-   so it sits above the plain page background but behind every real
-   element; it never intercepts clicks. */
-.hero-glow {
-  position: fixed;
-  top: -220px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(1100px, 150vw);
-  height: 560px;
-  background:
-    radial-gradient(circle at 24% 40%, rgba(255, 106, 26, 0.20), transparent 60%),
-    radial-gradient(circle at 76% 55%, rgba(34, 211, 238, 0.16), transparent 55%);
-  filter: blur(50px);
-  z-index: -1;
-  pointer-events: none;
-}
-
 .wrap {
-  max-width: 900px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 36px 16px 64px 16px;
+  padding: 32px 16px 64px 16px;
 }
+
+/* ---------- Masthead + navigation ---------- */
 
 header.masthead {
-  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 4px solid var(--text);
 }
 
 .masthead-row {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 12px 24px;
 }
 
 header.masthead .wordmark {
   margin: 0;
   font-family: var(--font-head);
-  font-size: 40px;
+  font-size: 48px;
   font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  line-height: 1;
 }
-
-header.masthead .wordmark span {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+header.masthead .wordmark span { color: var(--ours); }
 
 header.masthead .tagline {
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--text-muted);
-  font-weight: 500;
   margin-top: 8px;
-  max-width: 42ch;
-}
-
-.updated-chip {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 15px;
   color: var(--text-muted);
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  padding: 6px 12px;
-  white-space: nowrap;
-  box-shadow: var(--shadow-sm);
+  max-width: 48ch;
 }
 
 .masthead-right {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
-.sport-switcher {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-}
+.sport-switcher { display: flex; gap: 4px; }
 
 .sport-tab {
-  display: inline-block;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   text-decoration: none;
   color: var(--text-muted);
-  border-radius: 999px;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  padding: 4px 10px;
+  border: 1px solid var(--rule-strong);
 }
+.sport-tab:hover { color: var(--text); border-color: var(--text-muted); }
+.sport-tab.active { color: var(--bg); background: var(--text); border-color: var(--text); }
 
-.sport-tab:hover { color: var(--text-primary); }
-
-.sport-tab.active {
-  color: #14151a;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-}
+.updated-chip { font-size: 13px; color: var(--text-faint); }
 
 nav.tabs {
-  display: inline-flex;
-  gap: 4px;
-  margin-bottom: 24px;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  position: sticky;
-  top: 12px;
-  z-index: 20;
-  box-shadow: var(--shadow-md);
+  display: flex;
+  gap: 24px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+nav.tabs::-webkit-scrollbar { display: none; }
 
 nav.tabs a {
-  display: inline-block;
-  padding: 8px 20px;
-  font-size: 14px;
-  font-weight: 700;
+  flex-shrink: 0;
+  padding: 12px 0 10px 0;
+  font-size: 15px;
+  font-weight: 600;
   text-decoration: none;
   color: var(--text-muted);
-  border-radius: 999px;
-  transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
 }
+nav.tabs a:hover { color: var(--text); }
+nav.tabs a.active { color: var(--text); border-bottom-color: var(--ours); }
 
-nav.tabs a:hover { color: var(--text-primary); }
+/* ---------- Sections ---------- */
 
-nav.tabs a.active {
-  color: #14151a;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  box-shadow: var(--shadow-glow);
-}
-
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 24px;
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-  animation: rise 0.5s ease both;
-}
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.card { margin-bottom: 48px; }
 
 .card-header {
-  padding: 20px 24px 16px 24px;
-  border-bottom: 1px solid var(--card-border);
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  padding-top: 8px;
+  border-top: 2px solid var(--text);
+  margin-bottom: 16px;
 }
-
-.card-icon-badge {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: var(--primary-tint);
-  color: var(--primary-2);
-  box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.18);
-}
-
-.card-icon { width: 20px; height: 20px; }
-
 .card-header h2 {
-  font-family: var(--font-head);
-  font-size: 20px;
-  font-weight: 600;
   margin: 0;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
+  font-family: var(--font-head);
+  font-size: 28px;
+  font-weight: 700;
   line-height: 1.1;
-  color: var(--text-primary);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
 }
-
 .card-header .subtitle {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text-muted);
   margin-top: 4px;
+  font-size: 15px;
+  color: var(--text-muted);
 }
 
-.card-body { padding: 20px 24px 24px 24px; overflow-x: auto; }
+.card-body { overflow-x: auto; }
+
+.section-label {
+  margin: 32px 0 8px 0;
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/* ---------- Tables ---------- */
 
 table.data {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 table.data th, table.data td {
-  padding: 12px 10px;
+  padding: 10px 8px;
   text-align: left;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
+table.data th:first-child, table.data td:first-child { padding-left: 0; }
+table.data th:last-child, table.data td:last-child { padding-right: 0; }
 
 table.data th {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-muted);
-  border-bottom: 1px solid var(--card-border-strong);
-  white-space: nowrap;
+  border-bottom: 1px solid var(--rule-strong);
 }
 
 table.data th[data-sort-key] { cursor: pointer; user-select: none; }
-table.data th[data-sort-key]:hover { color: var(--text-primary); }
-table.data th.sorted-asc::after { content: " \25B2"; font-size: 9px; color: var(--primary-2); }
-table.data th.sorted-desc::after { content: " \25BC"; font-size: 9px; color: var(--primary-2); }
+table.data th[data-sort-key]:hover { color: var(--text); }
+table.data th.sorted-asc::after { content: " \25B2"; font-size: 9px; }
+table.data th.sorted-desc::after { content: " \25BC"; font-size: 9px; }
 
-table.data td.num, table.data th.num {
-  text-align: right;
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  font-feature-settings: "tnum";
-}
+table.data td.num, table.data th.num { text-align: right; }
+table.data tbody tr:hover { background: var(--surface); }
 
-table.data tbody tr { transition: background-color 0.1s ease; }
-table.data tbody tr:nth-child(even) { background: var(--row-alt-bg); }
-table.data tbody tr:hover { background: var(--row-hover-bg); }
-table.data tbody tr.row-flag { background: var(--danger-tint); }
-table.data tbody tr.row-flag:hover { background: rgba(255, 84, 104, 0.22); }
-
-/* Matchup bar: both teams' logos over a background that fades from the away
-   team's color to the home team's - replaces plain "AWAY @ HOME" text. */
-table.data td:has(.matchup-bar) { padding: 6px 8px; white-space: normal; }
-.matchup-bar {
-  position: relative;
-  border-radius: 10px;
-  overflow: hidden;
-  padding: 8px 10px;
-  border: 1px solid var(--card-border);
-}
-.matchup-fade { position: absolute; inset: 0; z-index: 0; }
-.matchup-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
 .matchup-team {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-weight: 700;
+}
+.matchup-content { display: flex; align-items: center; gap: 8px; }
+.matchup-at { color: var(--text-faint); font-size: 13px; }
+.matchup-right {
+  margin-left: auto;
+  padding-left: 16px;
   font-size: 13px;
-  color: var(--text-primary);
-  white-space: nowrap;
+  color: var(--text-faint);
 }
 .team-logo {
   width: 22px;
   height: 22px;
   object-fit: contain;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 50%;
-  padding: 3px;
-}
-.matchup-at { color: var(--text-faint); font-size: 11px; }
-.matchup-right {
-  margin-left: auto;
-  font-size: 11px;
-  white-space: nowrap;
-  padding-left: 10px;
-  color: var(--text-muted);
+  background: #ecebe7;
+  padding: 2px;
 }
 
 .day-header td {
-  padding: 16px 10px 6px 10px;
-  font-size: 11px;
-  font-weight: 800;
+  padding: 20px 0 6px 0;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-faint);
   border-bottom: none;
-  background: transparent !important;
 }
-
-.subtabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  margin-bottom: 20px;
-}
-.subtab {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-.subtab:hover { color: var(--text-primary); }
-.subtab.active { color: #14151a; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
-.cat-panel[hidden] { display: none; }
 
 .table-footnote {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 72ch;
+}
+
+/* Track Record's season-vs-history comparison */
+table.record-table td.row-label { font-weight: 700; }
+
+/* ---------- Headline stat line (box-score style, no tiles) ---------- */
+
+.statline {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 0 24px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.stat {
+  flex: 1 1 160px;
+  padding: 4px 24px 16px 0;
+}
+.stat + .stat { border-left: 1px solid var(--rule); padding-left: 24px; }
+.stat-value {
+  font-family: var(--font-head);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  margin-top: 6px;
   font-size: 12px;
-  line-height: 1.5;
-  margin-top: 16px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
+.stat-sub { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+
+/* ---------- Tags (HIT / MISS / DIFFERENT PICK ...) ---------- */
 
 .pill {
   display: inline-block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.4px;
-  border-radius: 999px;
-  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  padding: 3px 5px;
+  border: 1px solid currentColor;
   white-space: nowrap;
+  vertical-align: 1px;
 }
-.pill-primary { color: var(--primary-2); background: var(--primary-tint); }
-.pill-market { color: var(--market); background: var(--market-tint); }
-.pill-danger { color: var(--danger); background: var(--danger-tint); }
-.pill-positive { color: var(--positive); background: var(--positive-tint); }
+.pill-primary { color: var(--ours); }
+.pill-market { color: var(--vegas); }
+.pill-danger { color: var(--miss); }
+.pill-positive { color: var(--hit); }
 
-.mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
-.accent { color: var(--primary-2); font-weight: 700; }
-.market-color { color: var(--market); }
+.accent { color: var(--ours); font-weight: 700; }
+.market-color { color: var(--vegas); }
+.mono { font-variant-numeric: tabular-nums; }
 
-.hero-number {
-  font-family: var(--font-head);
-  font-size: 48px;
-  font-weight: 700;
-  font-feature-settings: "tnum";
-  color: var(--text-primary);
-  line-height: 1;
-  margin: 8px 0;
-  letter-spacing: 0.5px;
-}
-.hero-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
+/* ---------- Controls ---------- */
 
-/* Bento grid: mixed tile sizes (one big square + two wide bars + four small
-   tiles) instead of a uniform row - the size itself signals which number
-   matters most, the way a bento box's biggest compartment is never a side. */
-.bento-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-top: 4px;
-}
-.bento-tile {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  background: var(--card-bg-2);
-  border: 1px solid var(--card-border);
-  border-top: 3px solid var(--card-border-strong);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
-}
-.bento-tile:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
-.bento-tile.tile-primary { border-top-color: var(--primary); }
-.bento-tile.tile-market { border-top-color: var(--market); }
-.bento-tile .value { font-family: var(--font-head); font-size: 26px; font-weight: 600; line-height: 1.1; letter-spacing: 0.3px; font-feature-settings: "tnum"; }
-.bento-tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
-
-.bento-hero {
-  grid-column: span 2;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, var(--primary-tint) 0%, var(--card-bg-2) 70%);
-  border: 1px solid var(--card-border);
-  border-top: 1px solid var(--card-border);
-}
-.bento-hero .hero-number { margin: 4px 0 0 0; }
-.bento-hero-full { grid-column: span 4; }
-.bento-hero .pill { font-size: 12px; padding: 8px 16px; }
-
-.bento-wide {
-  grid-column: span 2;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-.bento-wide .label { margin-top: 0; }
-.bento-wide .value { font-size: 28px; }
-
-.edge-section { margin-bottom: 24px; }
-.edge-kicker {
-  font-family: var(--font-head);
-  font-size: 14px;
+.subtabs { display: flex; gap: 24px; margin-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.subtab {
+  font-family: var(--font);
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  padding: 10px 0;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
   color: var(--text-muted);
-  margin-bottom: 12px;
-  padding-left: 2px;
-}
-.edge-grid {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.edge-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-top: 3px solid var(--primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 16px;
-  flex: 1;
-  min-width: 190px;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
-}
-.edge-card:hover { box-shadow: var(--shadow-glow); transform: translateY(-2px); }
-.edge-card-flip { border-top-color: var(--danger); }
-.edge-matchup { font-size: 12px; font-weight: 700; color: var(--text-muted); }
-.edge-our-line { font-family: var(--font-head); font-size: 24px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.1; color: var(--primary-2); margin-top: 8px; }
-.edge-vegas-line { font-size: 13px; margin-top: 3px; }
-.edge-our-line .muted, .edge-vegas-line .muted { font-size: 11px; font-weight: 500; font-family: var(--font-display); margin-left: 2px; }
-.edge-flip { margin-top: 8px; }
-
-.chart-card {
-  background: var(--card-bg-2);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-}
-.chart-card canvas { max-width: 100%; }
-
-.week-picker {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 9px 14px;
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  background: var(--card-bg-2);
-  color: var(--text-primary);
   cursor: pointer;
 }
-.week-picker:hover { border-color: var(--primary); }
+.subtab:hover { color: var(--text); }
+.subtab.active { color: var(--text); border-bottom-color: var(--ours); }
+.cat-panel[hidden] { display: none; }
 
-.empty-state {
-  border: 1px dashed var(--card-border-strong);
-  border-radius: var(--radius-md);
-  padding: 28px;
-  text-align: center;
-  color: var(--text-muted);
-  line-height: 1.6;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.02);
+.week-picker {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
 }
-
-footer.site-footer {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--card-border);
-  color: var(--text-muted);
-}
-
-.footer-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-.footer-heading {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-.footer-grid p {
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.footer-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--card-border);
-  font-size: 11px;
-}
-.footer-brand { font-family: var(--font-head); font-size: 14px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-primary); }
-.footer-brand span { color: var(--primary-2); }
+.week-picker:hover { border-color: var(--text-muted); }
 
 .btn-primary {
   display: inline-block;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  color: #14151a;
-  font-weight: 800;
-  font-size: 14px;
-  padding: 12px 28px;
-  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 12px 24px;
   text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+.btn-primary:hover { background: var(--ours); }
 
-.error-body { text-align: center; padding: 56px 24px; }
+/* ---------- Empty + loading states ---------- */
+
+.empty-state {
+  padding: 24px 0;
+  font-size: 15px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Charts render client-side from a CDN script; until one is drawn its box
+   shows a static skeleton (ruled lines where the gridlines will be), and if
+   the script never arrives the box says so instead of sitting blank. */
+.chart-card {
+  position: relative;
+  min-height: 220px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.chart-card canvas { max-width: 100%; }
+.chart-card[data-state="loading"],
+.chart-card[data-state="failed"] {
+  background-image: repeating-linear-gradient(to bottom, transparent 0 43px, var(--rule) 43px 44px);
+}
+.chart-card[data-state="loading"]::after,
+.chart-card[data-state="failed"]::after {
+  position: absolute;
+  left: 0;
+  top: 16px;
+  font-size: 13px;
+  color: var(--text-faint);
+  background: var(--bg);
+  padding-right: 8px;
+}
+.chart-card[data-state="loading"]::after { content: "Loading chart"; }
+.chart-card[data-state="failed"]::after { content: "Chart couldn't load - the charting script was blocked or offline."; }
+
+/* ---------- Footer ---------- */
+
+footer.site-footer {
+  margin-top: 64px;
+  padding-top: 16px;
+  border-top: 4px solid var(--text);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.footer-brand {
+  font-family: var(--font-head);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.footer-brand span { color: var(--ours); }
+.footer-text { margin: 8px 0 0 0; max-width: 72ch; line-height: 1.6; }
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.footer-links a { color: var(--text); text-underline-offset: 3px; }
+.footer-links a:hover { color: var(--ours); }
+
+/* ---------- Legal pages + 404 ---------- */
+
+.prose { max-width: 68ch; font-size: 16px; line-height: 1.65; }
+.prose h2 {
+  margin: 32px 0 8px 0;
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.prose p, .prose li { color: var(--text-muted); }
+.prose strong { color: var(--text); }
+.prose a { color: var(--text); text-underline-offset: 3px; }
+.prose ul { padding-left: 20px; }
+.prose li + li { margin-top: 6px; }
+
+.error-body { padding: 48px 0; }
 .error-code {
   font-family: var(--font-head);
-  font-size: 88px;
+  font-size: 96px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  letter-spacing: 1px;
   line-height: 1;
-  margin-bottom: 16px;
+  color: var(--ours);
 }
-.error-body h2 { font-size: 19px; margin: 18px 0 8px 0; color: var(--text-primary); }
-.error-body p { max-width: 40ch; margin: 0 auto 24px auto; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
+.error-body h2 { font-family: var(--font-head); font-size: 28px; text-transform: uppercase; margin: 16px 0 8px 0; }
+.error-body p { max-width: 44ch; margin: 0 0 24px 0; color: var(--text-muted); }
+
+/* ---------- Small screens ---------- */
 
 @media (max-width: 560px) {
-  .wrap { padding: 24px 14px 48px 14px; }
-  header.masthead .wordmark { font-size: 32px; }
-  header.masthead .tagline { max-width: none; }
-  .masthead-right { width: 100%; justify-content: space-between; }
-  .sport-tab { padding: 6px 12px; font-size: 11px; }
-  .hero-number { font-size: 40px; }
-  .card-header { padding: 16px 16px 14px 16px; }
-  .card-body { padding: 14px 16px 18px 16px; }
-  table.data { font-size: 12px; }
-  nav.tabs { display: flex; width: 100%; position: static; box-shadow: none; }
-  nav.tabs a { flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; }
-
-  .subtabs { width: 100%; display: flex; }
-  .subtab { flex: 1; text-align: center; padding: 7px 4px; }
-
-  .bento-grid { grid-template-columns: repeat(2, 1fr); }
-  .bento-hero { grid-column: span 2; padding: 16px; flex-direction: column; align-items: flex-start; }
-  .bento-wide { grid-column: span 2; }
-
-  .footer-grid { grid-template-columns: 1fr; gap: 18px; }
-  .footer-bottom { flex-direction: column; align-items: flex-start; }
+  .wrap { padding: 24px 16px 48px 16px; }
+  header.masthead .wordmark { font-size: 40px; }
+  .masthead-right { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; }
+  nav.tabs { gap: 20px; }
+  .card-header h2 { font-size: 24px; }
+  .stat { flex-basis: 50%; }
+  .stat:nth-child(odd) { border-left: none; padding-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--rule); padding-top: 12px; }
+  .stat-value { font-size: 36px; }
 }
 
-/* Responsive tables: below a wide-enough viewport, a 5-6 column game/stat
-   table (matchup + pick + line + total + win% + result) simply can't fit
-   without horizontal scrolling. Below this breakpoint, stack each row into
-   its own card instead - hide the header row, and turn every cell after the
-   first (identity) one into a label/value pair via its data-label attribute,
-   so every column is still visible without scrolling sideways. Only tables
-   explicitly marked .responsive-stack get this treatment. */
+/* Below this width a 5-6 column game table can't fit, so each row becomes
+   its own block: header row hidden, every cell after the first rendered as a
+   label/value pair from its data-label - every column still visible with no
+   sideways scrolling. Only tables marked .responsive-stack do this. */
 @media (max-width: 700px) {
   table.responsive-stack thead { display: none; }
   table.responsive-stack, table.responsive-stack tbody, table.responsive-stack tr { display: block; width: 100%; }
   table.responsive-stack tbody tr {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--card-border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 24px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
   }
-  table.responsive-stack tbody tr:last-child { border-bottom: none; }
+  table.responsive-stack tbody tr:hover { background: none; }
   table.responsive-stack tbody tr td {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 5px 2px;
+    padding: 4px 0;
     border-bottom: none;
     white-space: normal;
   }
   table.responsive-stack tbody tr td[data-label]::before {
     content: attr(data-label);
-    font-size: 11px;
-    font-weight: 800;
+    font-size: 12px;
+    font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  table.responsive-stack tbody tr td:first-child {
-    display: block;
-    padding: 2px 2px 8px 2px;
-  }
+  table.responsive-stack tbody tr td:first-child { display: block; grid-column: 1 / -1; padding: 0 0 8px 0; }
+  table.responsive-stack tbody tr td > span { white-space: nowrap; }
 }
 
-/* Touch devices: every tap target at least 44px tall (Apple HIG / typeui
-   accessibility floor), via padding + flex centering rather than bigger
-   type, so the layout doesn't change - only the hit area grows. */
+/* Touch devices: 44px tap targets via padding, layout unchanged. */
 @media (pointer: coarse) {
-  nav.tabs a, .subtab, .sport-tab, .week-picker {
+  nav.tabs a, .subtab, .sport-tab, .week-picker, .footer-links a {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
   }
 }
 
-/* Motion is decoration here, never information: drop the entrance
-   animation and hover lifts for anyone who asks the OS for less motion. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-  .bento-tile:hover, .edge-card:hover, .btn-primary:hover { transform: none; }
+.page-title, .error-title {
+  margin: 0 0 16px 0;
+  font-family: var(--font-head);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
 }

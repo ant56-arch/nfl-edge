@@ -74,8 +74,8 @@ function initHistoryPicker() {
   buildWeekPicker(HISTORY_DATA, "week-select", "week-content", (week) => {
     let rows = "";
     week.games.forEach(g => {
-      rows += `<tr class="${g.model_correct === false ? "row-flag" : ""}">
-        <td>${g.away_team} @ ${g.home_team}<div class="faint" style="font-size:11px;">Final: ${g.away_score}-${g.home_score}</div></td>
+      rows += `<tr>
+        <td>${g.away_team} @ ${g.home_team}<div class="faint" style="font-size:13px;">Final: ${g.away_score}-${g.home_score}</div></td>
         <td class="num mono" data-label="Model Pick">${g.model_pick}</td>
         <td class="num mono" data-label="Result">${g.model_correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>"}</td>
         <td class="num mono" data-label="Vegas Pick">${g.vegas_pick}</td>
@@ -97,21 +97,21 @@ function initTeamsPicker() {
     let rows = "";
     week.games.forEach(g => {
       const pick = `${g.favored_team} -${g.favored_by.toFixed(1)}`;
-      const vegas = g.vegas_favored_team ? `${g.vegas_favored_team} -${g.vegas_favored_by.toFixed(1)}` : "&mdash;";
+      const vegas = g.vegas_favored_team ? `${g.vegas_favored_team} -${g.vegas_favored_by.toFixed(1)}` : "-";
       let resultCell;
       if (g.graded) {
         const resultPill = g.correct ? "<span class='pill pill-positive'>HIT</span>" : "<span class='pill pill-danger'>MISS</span>";
         resultCell = `${g.away_score}-${g.home_score} ${resultPill}`;
       } else {
-        resultCell = "<span class='faint'>&mdash;</span>";
+        resultCell = "<span class='faint'>-</span>";
       }
-      rows += `<tr class="${g.graded && g.correct === false ? "row-flag" : ""}">
+      rows += `<tr>
         <td>${g.matchup_html}</td>
         <td class="num mono accent" data-label="Model Pick">${pick}</td>
         <td class="num mono market-color" data-label="Vegas">${vegas}</td>
         <td class="num mono" data-label="Total">${g.total.toFixed(1)}</td>
         <td class="num mono" data-label="Win%">${(g.win_pct * 100).toFixed(0)}%</td>
-        <td class="num mono" data-label="Result">${resultCell}</td>
+        <td class="num mono" data-label="Result"><span>${resultCell}</span></td>
       </tr>`;
     });
     return `<table class="data responsive-stack">
@@ -146,35 +146,43 @@ initSubtabs();
 
 // --- Trend charts (accuracy.html) ---
 function initCharts() {
-  if (typeof ACCURACY_DATA === "undefined" || typeof Chart === "undefined") return;
-  Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  if (typeof ACCURACY_DATA === "undefined") return;
+  // The chart boxes ship with a static skeleton (data-state="loading"); if
+  // the CDN script never arrived, say so instead of leaving blank boxes.
+  if (typeof Chart === "undefined") {
+    document.querySelectorAll(".chart-card").forEach(c => c.dataset.state = "failed");
+    return;
+  }
+  Chart.defaults.font.family = "'Barlow', 'Helvetica Neue', Arial, sans-serif";
+  Chart.defaults.animation = false;
   const labels = ACCURACY_DATA.labels;
 
   function lineChart(canvasId, title, usSeries, vegasSeries, formatFn) {
     const el = document.getElementById(canvasId);
     if (!el) return;
+    el.closest(".chart-card")?.setAttribute("data-state", "ready");
     new Chart(el, {
       type: "line",
       data: {
         labels,
         datasets: [
-          { label: "Us", data: usSeries, borderColor: "#ff6a1a", backgroundColor: "#ff6a1a", pointRadius: 3, borderWidth: 2, tension: 0.15 },
-          { label: "Vegas", data: vegasSeries, borderColor: "#22d3ee", backgroundColor: "#22d3ee", pointRadius: 3, borderWidth: 2, tension: 0.15 },
+          { label: "Our model", data: usSeries, borderColor: "#e5793b", backgroundColor: "#e5793b", pointRadius: 3, borderWidth: 2, tension: 0 },
+          { label: "Vegas", data: vegasSeries, borderColor: "#8db4d8", backgroundColor: "#8db4d8", pointRadius: 3, borderWidth: 2, tension: 0 },
         ],
       },
       options: {
         plugins: {
-          title: { display: true, text: title, font: { size: 13, weight: "bold" }, color: "#f5f6f8" },
-          legend: { display: true, position: "top", labels: { color: "#f5f6f8", font: { size: 12 } } },
+          title: { display: true, text: title, align: "start", font: { size: 15, weight: "bold" }, color: "#ecebe7" },
+          legend: { display: true, position: "top", align: "start", labels: { color: "#ecebe7", font: { size: 13 }, boxWidth: 12, boxHeight: 2 } },
           tooltip: {
-            backgroundColor: "#1b1e27", borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
-            titleColor: "#f5f6f8", bodyColor: "#98a1b0",
+            backgroundColor: "#1a1b1d", borderColor: "#45484e", borderWidth: 1, cornerRadius: 0,
+            titleColor: "#ecebe7", bodyColor: "#a8a7a1",
             callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatFn(ctx.parsed.y)}` },
           },
         },
         scales: {
-          y: { ticks: { color: "#98a1b0" }, grid: { color: "rgba(255,255,255,0.06)" } },
-          x: { ticks: { color: "#98a1b0" }, grid: { display: false } },
+          y: { ticks: { color: "#a8a7a1" }, grid: { color: "#2b2d31" }, border: { display: false } },
+          x: { ticks: { color: "#a8a7a1" }, grid: { display: false }, border: { color: "#45484e" } },
         },
       },
     });
