@@ -10,7 +10,7 @@ way on the MLB and NBA sites):
      book probability. The pick is the side with the larger edge
      (ours minus book's). With two sides that is simply whichever side our
      model likes more than the market does.
-  3. It's labeled Value when that edge is at least 3 percentage points.
+  3. It's labeled Value when that edge is at least 6 percentage points.
      Every game with a book moneyline still gets a pick either way.
   4. Once final, a pick is graded at 1 unit risked at the book price: a win
      at +135 pays +1.35u, a win at -150 pays +0.667u, a loss is -1u. A tie,
@@ -27,7 +27,7 @@ no past seasons.
 import numpy as np
 import pandas as pd
 
-VALUE_EDGE = 0.03
+VALUE_EDGE = 0.06
 
 # Columns each tracking log keeps per game (see pick_columns()).
 ML_COLS = ["ml_commence_time", "ml_home_price", "ml_away_price", "ml_pick_side", "ml_pick_team",
