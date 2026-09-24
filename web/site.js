@@ -111,14 +111,15 @@ function initTeamsPicker() {
         <td class="num mono market-color" data-label="Vegas">${vegas}</td>
         <td class="num mono" data-label="Total">${g.total.toFixed(1)}</td>
         <td class="num mono" data-label="Win%">${(g.win_pct * 100).toFixed(0)}%</td>
+        <td class="num ml-cell" data-label="Moneyline">${g.ml_html || "<span class='faint'>-</span>"}</td>
         <td class="num mono" data-label="Result"><span>${resultCell}</span></td>
       </tr>`;
     });
     return `<table class="data responsive-stack">
-        <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Vegas</th><th class="num">Total</th><th class="num">Win%</th><th class="num">Result</th></tr></thead>
+        <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Vegas</th><th class="num">Total</th><th class="num">Win%</th><th class="num">Moneyline</th><th class="num">Result</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="table-footnote muted">Result shows the final score once graded.</div>`;
+      <div class="table-footnote muted">Result shows the final score once graded. Moneyline is our pick at the book's price, with our win chance vs the book's (vig removed); VALUE means an edge of 3 points or more.</div>`;
   }, (data) => data.default_week || data.week_order[data.week_order.length - 1]);
 }
 initTeamsPicker();

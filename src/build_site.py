@@ -36,6 +36,7 @@ import pandas as pd
 import numpy as np
 import games as games_mod
 import model_page
+import moneyline
 import json
 import os
 import shutil
@@ -164,6 +165,41 @@ def model_pick(row):
         "win_pct": win_pct,
         "total": row["model_total"],
     }
+
+def ml_view(sport, r):
+    """A game's moneyline pick for display (see src/moneyline.py), from any
+    row carrying the ml_* columns - a tracking-log row (locked at kickoff,
+    graded once final) or a vegas_comparison row. None when the game has no
+    book moneyline."""
+    if r is None or pd.isna(r.get("ml_pick_side")) or pd.isna(r.get("ml_pick_price")):
+        return None
+    won, push = r.get("ml_won"), r.get("ml_push")
+    result = None
+    if pd.notna(won):
+        result = "W" if won == 1 else "L"
+    elif pd.notna(push) and push == 1:
+        result = "P"
+    return {
+        "text": f"{team_short(sport, r['ml_pick_team'])} {moneyline.format_price(r['ml_pick_price'])}",
+        "our": round(float(r["ml_our_prob"]), 3), "book": round(float(r["ml_book_prob"]), 3),
+        "edge": round(float(r["ml_edge"]), 3), "value": moneyline.is_value(r.get("ml_value")),
+        "result": result, "units": round(float(r["ml_units"]), 2) if pd.notna(r.get("ml_units")) else None,
+    }
+
+def ml_cell_html(ml):
+    """The Moneyline cell: pick and price, our win % vs the no-vig book %,
+    the edge, a VALUE tag at 3+ points, and W/L with units once graded."""
+    if not ml:
+        return f'<span class="faint">{DASH}</span>'
+    tags = f' {pill("VALUE", "positive")}' if ml["value"] else ""
+    if ml["result"] == "W":
+        tags += f' {pill("W " + moneyline.fmt_units(ml["units"]), "positive")}'
+    elif ml["result"] == "L":
+        tags += f' {pill("L " + moneyline.fmt_units(ml["units"]), "danger")}'
+    elif ml["result"] == "P":
+        tags += f' {pill("NO DECISION", "market")}'
+    return (f'<span class="ml-pick"><span class="ml-line"><span class="accent">{ml["text"]}</span>{tags}</span>'
+            f'<span class="ml-sub">our {ml["our"]:.0%} vs book {ml["book"]:.0%}, {ml["edge"] * 100:+.0f}</span></span>')
 
 _ASSET_VERSION = None
 
@@ -393,6 +429,7 @@ def render_week_table(week_games):
           <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num">{vegas_html}</td>
           <td data-key="total" data-value="{g['total']:.2f}" data-label="Total" class="num"><span>{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</span></td>
           <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num">{g['win_pct']:.0%}</td>
+          <td data-key="ml" data-value="{g['ml']['edge'] if g.get('ml') else -1:.3f}" data-label="Moneyline" class="num ml-cell">{ml_cell_html(g.get('ml'))}</td>
           <td data-label="Result" class="num"><span>{result_html}</span></td>
         </tr>"""
 
@@ -403,11 +440,14 @@ def render_week_table(week_games):
         <th data-sort-key="vegas" class="num">Vegas</th>
         <th data-sort-key="total" class="num">Total (us / vegas)</th>
         <th data-sort-key="winpct" class="num">Win%</th>
+        <th data-sort-key="ml" class="num">Moneyline</th>
         <th class="num">Result</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does. Select a column header to sort.</div>"""
+    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does.
+      Moneyline is the side where our win chance beats the book's (vig removed) by more, at the book's price;
+      {pill("VALUE", "positive")} means an edge of 3 points or more. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -477,8 +517,39 @@ def build_top25_block(top25_summary):
       This is the betting market's record, not our model's, and it covers more seasons than our live tracking.
       Straight-up means the favorite won. Against the spread means the favorite won by more than the line.</div>"""
 
-def build_track_record_section(sport, summary, top25_summary=None):
-    top25_html = build_top25_block(top25_summary)
+ML_EMPTY = "No moneyline picks graded yet this season."
+
+def ml_record(sport, games, log):
+    """(season, record) for the moneyline: this season's live picks only,
+    graded from the tracking log - never backfill or past seasons."""
+    season = display_season(sport, games, log)
+    return season, moneyline.summarize(log, season)
+
+def build_moneyline_block(season, ml, with_label=True):
+    """Moneyline record tiles (W-L, units, ROI, Value picks), or the empty
+    state until a pick this season has been graded."""
+    label = f'<div class="section-label">Moneyline, {season}</div>' if with_label else ""
+    if not ml:
+        return label + f'<div class="empty-state">{ML_EMPTY}</div>'
+    pushes = f", {ml['pushes']} no decision" if ml["pushes"] else ""
+    v = ml["value"]
+    stats = [
+        (ml["record"], f"{season} moneyline", f"{ml['n_decided']} picks graded{pushes}"),
+        (moneyline.fmt_units(ml["units"]), "Units", "1 unit risked per pick"),
+        (moneyline.fmt_roi(ml["roi"]), "ROI", "return per unit risked"),
+        (v["record"] if v["n_decided"] else DASH, "Value picks",
+         f"{moneyline.fmt_units(v['units'])}, ROI {moneyline.fmt_roi(v['roi'])}" if v["n_decided"] else "edge of 3+ points"),
+    ]
+    statline = '<div class="statline">' + "".join(
+        f'<div class="stat"><div class="stat-value">{val}</div><div class="stat-label">{lab}</div>'
+        f'<div class="stat-sub">{sub}</div></div>' for val, lab, sub in stats) + "</div>"
+    note = ('<div class="table-footnote">Our moneyline pick in every game with a book moneyline, graded at 1 unit '
+            'risked at the book price and locked at kickoff. A win at +135 pays 1.35 units, a win at -150 pays '
+            '0.67, a loss costs 1. Ties count as no decision. This season\'s live picks only.</div>')
+    return label + statline + note
+
+def build_track_record_section(sport, summary, top25_summary=None, ml_html=""):
+    top25_html = ml_html + build_top25_block(top25_summary)
     live_start = sport["live_tracking_start_season"]
     if summary is None:
         body = '<div class="empty-state">No games graded yet. Results appear here after the first week is played.</div>' + top25_html
@@ -602,7 +673,8 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
     week_games_df = next_week_games(games)
     edge_html = build_edge_cards(sport, comparison, week_games_df) if comparison is not None else ""
     slate_html = render_week_table(this_week["games"] if this_week else [])
-    track_html = build_track_record_section(sport, accuracy_summary, top25_summary)
+    ml_season, ml = ml_record(sport, games, log)
+    track_html = build_track_record_section(sport, accuracy_summary, top25_summary, build_moneyline_block(ml_season, ml))
 
     subtitle = "Our model's pick and the Vegas line for every game this week, graded once played. The Teams tab has the full season."
     if not weeks and sport.get("no_games_note"):
@@ -659,6 +731,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "vegas_total": round(float(r["vegas_total"]), 1) if pd.notna(r.get("vegas_total")) else None,
                 "graded": True, "home_score": home_score, "away_score": away_score,
                 "correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
+                "ml": ml_view(sport, r),
             })
 
     if not games.empty:
@@ -668,6 +741,16 @@ def assemble_season_weeks(sport, games, log, comparison, season):
     vegas_cols = None
     if comparison is not None and not comparison.empty:
         vegas_cols = comparison[["home_team", "away_team", "vegas_favored_team", "vegas_home_favored_by", "total_line"]]
+    # Moneyline picks for games not yet graded: the tracking log's copy first
+    # (frozen at kickoff, so a game in progress keeps its pre-game price),
+    # else this run's comparison.
+    ml_rows = {}
+    if comparison is not None and not comparison.empty and "ml_pick_side" in comparison.columns:
+        for _, c in comparison[comparison["ml_pick_side"].notna()].iterrows():
+            ml_rows[(int(c["week"]), c["home_team"], c["away_team"])] = c
+    if not log.empty and "ml_pick_side" in log.columns:
+        for _, c in log[(log["season"] == season) & log["ml_pick_side"].notna()].iterrows():
+            ml_rows[(int(c["week"]), c["home_team"], c["away_team"])] = c
     for wk, g in upcoming.groupby("week"):
         bucket = week_bucket(wk, g["game_type"].iloc[0] if "game_type" in g.columns else None)
         merged = g.merge(vegas_cols, on=["home_team", "away_team"], how="left") if vegas_cols is not None else g
@@ -687,8 +770,13 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "vegas_favored_by": round(float(abs(r["vegas_home_favored_by"])), 1) if has_vegas else None,
                 "vegas_total": round(float(r["total_line"]), 1) if has_vegas and pd.notna(r.get("total_line")) else None,
                 "graded": False, "home_score": None, "away_score": None, "correct": None,
+                "ml": ml_view(sport, ml_rows.get((int(r["week"]), r["home_team"], r["away_team"]))),
             })
 
+    # Pre-rendered for the Teams page, whose table site.js draws client-side.
+    for wk in weeks.values():
+        for g in wk["games"]:
+            g["ml_html"] = ml_cell_html(g["ml"])
     return weeks
 
 def current_week_key(weeks):
@@ -751,7 +839,29 @@ def build_history_page(sport, log):
                 f'<script>const HISTORY_DATA = {history_json};</script>')
     return page_shell(sport, "History", "history", body)
 
-def build_accuracy_page(sport, log):
+def build_moneyline_card(sport, games, log):
+    """Accuracy tab: this season's moneyline record and every graded pick."""
+    season, ml = ml_record(sport, games, log)
+    body = build_moneyline_block(season, ml, with_label=False)
+    if ml:
+        picks = log[(log["season"] == season) & log["ml_pick_side"].notna()
+                    & (log["ml_won"].notna() | (log["ml_push"] == 1))].sort_values(["week", "gameday"], ascending=False)
+        rows = ""
+        for _, r in picks.iterrows():
+            view = ml_view(sport, r)
+            rows += f"""<tr>
+          <td>{week_label(r["week"], r.get("game_type"))}<div class="faint" style="font-size:13px;">{team_short(sport, r["away_team"])} @ {team_short(sport, r["home_team"])}, final {int(r["away_score"])}-{int(r["home_score"])}</div></td>
+          <td data-label="Pick" class="num ml-cell">{ml_cell_html(view)}</td>
+        </tr>"""
+        body += f"""<table class="data responsive-stack">
+      <thead><tr><th>Game</th><th class="num">Pick</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+    return card("Moneyline Record", f"{season} moneyline picks, graded at 1 unit each", body)
+
+def build_accuracy_page(sport, log, games=None):
+    games = games if games is not None else pd.DataFrame()
+    ml_card = build_moneyline_card(sport, games, log)
     live_start = sport["live_tracking_start_season"]
     graded = log[log["actual_margin"].notna()].copy() if not log.empty else log
     if not graded.empty:
@@ -760,7 +870,7 @@ def build_accuracy_page(sport, log):
         body = card("Accuracy Over Time", "Weekly trend, us vs. the market",
                      '<div class="empty-state">No live-tracked games graded yet. Check back once the '
                      f'{live_start} season starts.</div>')
-        return page_shell(sport, "Accuracy", "accuracy", body)
+        return page_shell(sport, "Accuracy", "accuracy", ml_card + body)
 
     graded = graded.sort_values(["season", "week"])
     # "model_*" here too, not "sharp_*" - sharp is the market-blended line,
@@ -787,7 +897,7 @@ def build_accuracy_page(sport, log):
     body = card("Accuracy Over Time",
                 f"Week-by-week results for {int(weekly['n'].sum())} live-picked games since the start of {live_start}: our model's picks against the market",
                 charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>')
-    return page_shell(sport, "Accuracy", "accuracy", body)
+    return page_shell(sport, "Accuracy", "accuracy", ml_card + body)
 
 LEGAL_EFFECTIVE_DATE = "September 23, 2026"
 
@@ -1067,6 +1177,11 @@ def build_summary(sport, games, log, comparison, accuracy_summary):
         summary["record"] = {"value": current["record"],
                              "label": f"{accuracy_summary.get('current_season_year', '')} straight-up".strip(),
                              "sub": pct(current.get("pick_accuracy"))}
+    # Optional: this season's moneyline record, same shape as "record".
+    ml_season, ml = ml_record(sport, games, log)
+    summary["moneyline_record"] = ({"value": ml["record"], "label": f"{ml_season} moneyline",
+                                    "sub": f"{moneyline.fmt_units(ml['units'])}, ROI {moneyline.fmt_roi(ml['roi'])}"}
+                                   if ml else None)
     return summary
 
 # nflverse team codes that differ from ESPN's.
@@ -1108,7 +1223,7 @@ def build_sport_pages(sport):
         "index.html": build_index_page(sport, games, props, comparison, accuracy_summary, log, top25_summary),
         "teams.html": build_teams_page(sport, games, log, comparison),
         "history.html": build_history_page(sport, log),
-        "accuracy.html": build_accuracy_page(sport, log),
+        "accuracy.html": build_accuracy_page(sport, log, games),
         "model.html": build_model_page(sport),
         "schedule.html": games_mod.schedule_redirect(sport["slug"]),
     }

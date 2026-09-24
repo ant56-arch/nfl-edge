@@ -27,6 +27,10 @@ THRESHOLDS (starting points, adjust as you get a feel for the model):
 
 import pandas as pd
 import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import moneyline
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "processed")
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
@@ -80,6 +84,11 @@ def compare(predictions, odds):
     merged["model_favored_by"] = merged["model_spread"].abs()
     merged["picks_flip"] = merged["model_favored_team"] != merged["vegas_favored_team"]
 
+    # Moneyline pick: the side where our pure model's win probability beats
+    # the no-vig book probability by more (see src/moneyline.py). Uses the
+    # h2h prices fetch_odds already pulls - no extra odds-API calls.
+    merged = moneyline.add_pick_columns(merged)
+
     return merged
 
 def main():
@@ -109,6 +118,8 @@ def main():
                 "model_total", "total_line", "total_edge", "model_home_win_prob", "vegas_home_win_prob", "win_prob_edge"]
         print(notable[cols].round(3).to_string(index=False))
 
+    ml = comparison[comparison["ml_pick_side"].notna()]
+    print(f"\nMoneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 3 pts).")
     print(f"\nSaved full comparison to {out_path}")
 
 if __name__ == "__main__":

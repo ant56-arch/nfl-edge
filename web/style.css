@@ -945,3 +945,14 @@ table.retrain-log td.why-cell { white-space: normal; min-width: 200px; color: va
   }
   .sport-tab { min-height: 48px; }
 }
+
+/* ---------- Moneyline picks (NFL/CFB additions) ---------- */
+
+.ml-pick { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ml-line { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ml-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+@media (max-width: 700px) {
+  table.responsive-stack tbody tr td.ml-cell { grid-column: 1 / -1; }
+  table.responsive-stack tbody tr td.ml-cell > span { white-space: normal; }
+}
