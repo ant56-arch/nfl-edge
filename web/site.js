@@ -119,7 +119,7 @@ function initTeamsPicker() {
         <thead><tr><th>Matchup</th><th class="num">Model Pick</th><th class="num">Vegas</th><th class="num">Total</th><th class="num">Win%</th><th class="num">Moneyline</th><th class="num">Result</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="table-footnote muted">Result shows the final score once graded. Moneyline is our pick at the book's price, with our win chance vs the book's (vig removed); VALUE means an edge of 3 points or more.</div>`;
+      <div class="table-footnote muted">Result shows the final score once graded. Moneyline is our pick at the book's price, with our win chance vs the book's (vig removed); VALUE means an edge of 6 points or more.</div>`;
   }, (data) => data.default_week || data.week_order[data.week_order.length - 1]);
 }
 initTeamsPicker();

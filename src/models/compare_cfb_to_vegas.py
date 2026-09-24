@@ -78,7 +78,7 @@ def main():
     notable = comparison[comparison["has_notable_edge"]]
     print(f"{len(comparison)} CFB games compared, {len(notable)} with a notable edge vs Vegas.")
     ml = comparison[comparison["ml_pick_side"].notna()]
-    print(f"Moneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 3 pts).")
+    print(f"Moneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 6 pts).")
     print(f"Saved full comparison to {out_path}")
 
 if __name__ == "__main__":

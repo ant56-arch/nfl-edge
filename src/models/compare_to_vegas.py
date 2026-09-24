@@ -119,7 +119,7 @@ def main():
         print(notable[cols].round(3).to_string(index=False))
 
     ml = comparison[comparison["ml_pick_side"].notna()]
-    print(f"\nMoneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 3 pts).")
+    print(f"\nMoneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 6 pts).")
     print(f"\nSaved full comparison to {out_path}")
 
 if __name__ == "__main__":

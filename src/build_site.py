@@ -447,7 +447,7 @@ def render_week_table(week_games):
     </table>
     <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does.
       Moneyline is the side where our win chance beats the book's (vig removed) by more, at the book's price;
-      {pill("VALUE", "positive")} means an edge of 3 points or more. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
+      {pill("VALUE", "positive")} means an edge of 6 points or more. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
