@@ -10,6 +10,10 @@ yet, or no odds this run), this skips rather than crashing.
 
 import pandas as pd
 import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import moneyline
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "processed")
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
@@ -44,6 +48,11 @@ def compare(predictions, odds):
     merged["model_favored_by"] = merged["model_spread"].abs()
     merged["picks_flip"] = merged["model_favored_team"] != merged["vegas_favored_team"]
 
+    # Moneyline pick: the side where our pure model's win probability beats
+    # the no-vig book probability by more (see src/moneyline.py). Uses the
+    # h2h prices fetch_odds already pulls - no extra odds-API calls.
+    merged = moneyline.add_pick_columns(merged)
+
     return merged
 
 def main():
@@ -68,6 +77,8 @@ def main():
     comparison.to_csv(out_path, index=False)
     notable = comparison[comparison["has_notable_edge"]]
     print(f"{len(comparison)} CFB games compared, {len(notable)} with a notable edge vs Vegas.")
+    ml = comparison[comparison["ml_pick_side"].notna()]
+    print(f"Moneyline picks: {len(ml)} games, {int(ml['ml_value'].astype(bool).sum())} flagged Value (edge >= 3 pts).")
     print(f"Saved full comparison to {out_path}")
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from fetch_data import current_nfl_season
+import moneyline
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
@@ -70,6 +71,18 @@ def load_predictions_snapshot():
         "projected_spread": "sharp_spread", "projected_total": "sharp_total", "home_win_prob": "sharp_home_win_prob",
         "total_line": "vegas_total",
     })
+
+def load_moneyline_snapshot():
+    """This run's moneyline picks (see src/moneyline.py), keyed like the log.
+    Written into the log by moneyline.lock_and_merge, which skips any game
+    whose kickoff has already passed - the pick and price lock at kickoff."""
+    path = os.path.join(PROCESSED_DIR, "vegas_comparison.csv")
+    if not os.path.exists(path):
+        return None
+    comparison = pd.read_csv(path)
+    if comparison.empty or "ml_pick_side" not in comparison.columns:
+        return None
+    return comparison[[c for c in KEY_COLS + moneyline.ML_COLS if c in comparison.columns]].drop_duplicates(KEY_COLS)
 
 def upsert_snapshot(log, snapshot):
     if log is None or log.empty:
@@ -214,15 +227,21 @@ def main():
 
     log = pd.read_csv(LOG_PATH) if os.path.exists(LOG_PATH) else None
     log = upsert_snapshot(log, snapshot)
+    ml_snapshot = load_moneyline_snapshot()
+    if ml_snapshot is not None:
+        log = moneyline.lock_and_merge(log, ml_snapshot, KEY_COLS)
     print(f"  Tracking log now has {len(log)} predicted games total")
 
     print("Grading any games whose results are now in...")
     log = grade_completed_games(log)
+    log = moneyline.grade(log)
     print(f"  {int(log['actual_margin'].notna().sum())} games have a graded actual result")
 
     log.to_csv(LOG_PATH, index=False)
 
     summary = summarize(log)
+    # This season's live moneyline record only (never backfill/past seasons).
+    summary["moneyline"] = moneyline.summarize(log, current_nfl_season())
     with open(SUMMARY_PATH, "w") as f:
         json.dump(summary, f, indent=2)
 
