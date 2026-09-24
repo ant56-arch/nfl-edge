@@ -154,3 +154,24 @@ def schedule_redirect(sport):
 </body>
 </html>
 """
+
+
+def legal_redirect(page):
+    """A stub at a site's old terms.html / privacy.html that forwards to the
+    one Terms of Use and Privacy Policy on the home site, which cover every
+    Sports Edge site."""
+    url = f"https://ant56-arch.github.io/{page}.html"
+    title = {"terms": "Terms of Use", "privacy": "Privacy Policy"}[page]
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url={url}">
+<link rel="canonical" href="{url}">
+<title>{title} | Sports Edge</title>
+</head>
+<body>
+<p>This page moved. <a href="{url}">Read the {title}</a>.</p>
+</body>
+</html>
+"""

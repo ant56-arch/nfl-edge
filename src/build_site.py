@@ -376,8 +376,8 @@ def page_shell(sport, title, active_tab, body_html):
     <p class="footer-text">For entertainment and research only. This is not betting advice, and past results don't
       predict future ones. If gambling is a problem for you or someone you know, call 1-800-GAMBLER.</p>
     <nav class="footer-links" aria-label="Site">
-      <a href="../terms.html">Terms of Use</a>
-      <a href="../privacy.html">Privacy Policy</a>
+      <a href="https://ant56-arch.github.io/terms.html">Terms of Use</a>
+      <a href="https://ant56-arch.github.io/privacy.html">Privacy Policy</a>
       <a href="{HOME_URL}">All sites</a>
       <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
       <span>&copy; {now.year} {sport["wordmark"]} Edge. Updated from final scores every week.</span>
@@ -899,8 +899,6 @@ def build_accuracy_page(sport, log, games=None):
                 charts_html + f'<script>const ACCURACY_DATA = {json.dumps(data)};</script>')
     return page_shell(sport, "Accuracy", "accuracy", ml_card + body)
 
-LEGAL_EFFECTIVE_DATE = "September 23, 2026"
-
 def root_page_shell(title, body_html):
     """Shell for the pages that live at the site root rather than under a
     sport (404, Terms, Privacy) - same top bar and footer links, no sport
@@ -926,8 +924,8 @@ def root_page_shell(title, body_html):
   </main>
   <footer class="site-footer">
     <nav class="footer-links" aria-label="Site" style="border-top:none;margin-top:0;padding-top:0;">
-      <a href="terms.html">Terms of Use</a>
-      <a href="privacy.html">Privacy Policy</a>
+      <a href="https://ant56-arch.github.io/terms.html">Terms of Use</a>
+      <a href="https://ant56-arch.github.io/privacy.html">Privacy Policy</a>
       <a href="{HOME_URL}">All sites</a>
       <a href="https://github.com/ant56-arch/nfl-edge">Source code</a>
       <span>&copy; {now.year} NFL Edge</span>
@@ -945,88 +943,6 @@ def build_404_page():
         <a class="btn-primary" href="nfl/index.html">Go to NFL Edge</a>
       </div>"""
     return root_page_shell("Page Not Found", body)
-
-def build_terms_page():
-    body = f"""<article class="prose">
-      <h1 class="page-title">Terms of Use</h1>
-      <p>Effective {LEGAL_EFFECTIVE_DATE}. By using NFL Edge and CFB Edge (together, "this site") you agree to
-        these terms. If you don't agree, please don't use the site.</p>
-
-      <h2>What this site is</h2>
-      <p>This site publishes computer-generated projections for NFL and college football games (spreads,
-        totals, win probabilities and player stats) along with a record of how past projections turned out.
-        It is a free, non-commercial project provided for <strong>entertainment and research only</strong>.</p>
-
-      <h2>Not betting or financial advice</h2>
-      <p>Nothing on this site is a recommendation to place any bet. Projections are estimates and are often
-        wrong, and past results don't predict future ones. You are solely responsible for any decision you
-        make, including any money you wager or lose.</p>
-
-      <h2>Legal age and location</h2>
-      <p>Sports betting is illegal in some places and restricted to adults everywhere it is legal. It is your
-        responsibility to know and follow the laws where you live. If gambling is causing problems for you or
-        someone you know, call or text <strong>1-800-GAMBLER</strong> (US).</p>
-
-      <h2>No warranty</h2>
-      <p>The site and its data are provided "as is", without warranties of any kind. Game data, betting lines
-        and team information come from third-party sources (nflverse, CollegeFootballData.com and
-        the-odds-api.com) and may be late, incomplete or incorrect. The site may change or go offline at any
-        time without notice.</p>
-
-      <h2>Limitation of liability</h2>
-      <p>To the fullest extent allowed by law, the operator of this site is not liable for any loss or damage
-        arising from your use of, or reliance on, the site or its content.</p>
-
-      <h2>Trademarks and affiliation</h2>
-      <p>This site is independent. It is not affiliated with, endorsed by or sponsored by the NFL, the NCAA,
-        any conference, team or sportsbook. Team names and logos are trademarks of their owners and are shown
-        only to identify teams.</p>
-
-      <h2>Changes</h2>
-      <p>These terms may be updated. The effective date above shows when they last changed, and continued use
-        of the site means you accept the current version.</p>
-
-      <h2>Contact</h2>
-      <p>Questions can be raised by opening an issue on the
-        <a href="https://github.com/ant56-arch/nfl-edge/issues">project's GitHub page</a>.</p>
-    </article>"""
-    return root_page_shell("Terms of Use", body)
-
-def build_privacy_page():
-    body = f"""<article class="prose">
-      <h1 class="page-title">Privacy Policy</h1>
-      <p>Effective {LEGAL_EFFECTIVE_DATE}. This site is a static website with no accounts, sign-ups, forms,
-        comments or payments.</p>
-
-      <h2>What we collect</h2>
-      <p><strong>Nothing.</strong> This site sets no cookies, runs no analytics or advertising trackers, and
-        does not ask for or store any personal information.</p>
-
-      <h2>Third parties your browser contacts</h2>
-      <p>Loading a page makes your browser request files from these services, which can see your IP address,
-        browser type and the page that made the request, as any web server does:</p>
-      <ul>
-        <li><strong>GitHub Pages</strong> hosts the site and may keep server logs, including IP addresses, for
-          security and operations. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub Privacy Statement</a>.</li>
-        <li><strong>Google Fonts</strong> serves the site's typefaces. See the
-          <a href="https://developers.google.com/fonts/faq/privacy">Google Fonts privacy FAQ</a>.</li>
-        <li><strong>jsDelivr</strong> serves the charting library on the Accuracy pages. See the
-          <a href="https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net">jsDelivr privacy policy</a>.</li>
-        <li><strong>ESPN's image servers</strong> (a.espncdn.com) serve the team logos.</li>
-      </ul>
-      <p>We don't receive or control the data those services log.</p>
-
-      <h2>Children</h2>
-      <p>This site isn't directed at children and doesn't knowingly collect information from anyone.</p>
-
-      <h2>Changes</h2>
-      <p>If this policy changes, the effective date above will be updated.</p>
-
-      <h2>Contact</h2>
-      <p>Questions can be raised by opening an issue on the
-        <a href="https://github.com/ant56-arch/nfl-edge/issues">project's GitHub page</a>.</p>
-    </article>"""
-    return root_page_shell("Privacy Policy", body)
 
 def build_redirect_page():
     """dist/index.html - a plain redirect to the default sport (NFL) so old
@@ -1253,8 +1169,8 @@ def main():
         f.write(build_redirect_page())
     print("  Wrote index.html (redirect to nfl/)")
 
-    for filename, html in [("404.html", build_404_page()), ("terms.html", build_terms_page()),
-                           ("privacy.html", build_privacy_page())]:
+    for filename, html in [("404.html", build_404_page()), ("terms.html", games_mod.legal_redirect("terms")),
+                           ("privacy.html", games_mod.legal_redirect("privacy"))]:
         with open(os.path.join(DIST_DIR, filename), "w") as f:
             f.write(html)
         print(f"  Wrote {filename}")
