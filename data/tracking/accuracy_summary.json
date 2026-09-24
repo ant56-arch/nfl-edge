@@ -1,7 +1,7 @@
 {
   "n_graded_games": 586,
   "current_season_year": 2026,
-  "last_updated": "2026-09-23T15:50:45.786035+00:00",
+  "last_updated": "2026-09-24T01:01:05.554818+00:00",
   "all_time": {
     "model": {
       "wins": 378,
@@ -142,5 +142,6 @@
       "ats_record": "9-7",
       "ats_accuracy": 0.562
     }
-  }
+  },
+  "moneyline": null
 }
