@@ -49,15 +49,19 @@ def _headers():
 
 def _get(path, params):
     """GET with a few retries: CFBD sometimes drops a large response midway
-    ("Response ended prematurely"), which used to fail the whole refit. A
-    real HTTP error (bad key, season not out yet) is raised right away."""
+    ("Response ended prematurely") or answers 502/503 for a minute, which
+    used to leave a run with no CFB picks at all. A client error (bad key,
+    season not out yet) is raised right away."""
     for attempt in range(4):
         try:
             r = requests.get(f"{BASE}{path}", params=params, headers=_headers(), timeout=60)
             r.raise_for_status()
             return r.json()
-        except requests.exceptions.HTTPError:
-            raise
+        except requests.exceptions.HTTPError as e:
+            if e.response is None or e.response.status_code < 500 or attempt == 3:
+                raise
+            print(f"  retrying {path} {params}: {e}")
+            time.sleep(2 ** attempt * 5)
         except (requests.exceptions.RequestException, ValueError) as e:
             if attempt == 3:
                 raise
