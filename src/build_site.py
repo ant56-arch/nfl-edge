@@ -33,6 +33,7 @@ dist/ directory - the workflow's own steps upload and deploy it.
 """
 
 from html import escape
+import math
 import pandas as pd
 import numpy as np
 import games as games_mod
@@ -189,6 +190,27 @@ def ml_view(sport, r):
         "edge": round(float(r["ml_edge"]), 3), "value": moneyline.is_value(r.get("ml_value")),
         "result": result, "units": round(float(r["ml_units"]), 2) if pd.notna(r.get("ml_units")) else None,
     }
+
+def spread_pick(sport, r, sigma):
+    """Our pick against the Vegas spread: the side our model's line says will
+    cover Vegas's number, and the chance it does - how far our line is from
+    Vegas's, over the model's usual miss (margin_std_dev), through the normal
+    curve. None without a Vegas line."""
+    vegas = r.get("vegas_home_favored_by")
+    if pd.isna(vegas) or pd.isna(r.get("model_spread")) or not sigma:
+        return None
+    diff = float(r["model_spread"]) - float(vegas)
+    home = diff >= 0
+    line = -float(vegas) if home else float(vegas)
+    line_text = "PK" if abs(line) < 0.05 else (f"+{line:.1f}" if line > 0 else f"{line:.1f}")
+    return {"team": team_short(sport, r["home_team"] if home else r["away_team"]),
+            "line": line_text,
+            "prob": round(0.5 * (1 + math.erf(abs(diff) / sigma / math.sqrt(2))), 3)}
+
+def spread_sigma(sport):
+    """The model's typical miss on the margin, in points (margin_std_dev)."""
+    coefs = load_coefficients(sport)
+    return coefs.get("coefficients", coefs).get("margin_std_dev")
 
 def ml_payout(price):
     """What a price means in dollars: '$100 pays $1,600' / 'Bet $150 to win $100'."""
@@ -412,59 +434,67 @@ def card(title, subtitle, body_html):
   </section>"""
 
 def render_week_table(week_games):
-    """Renders one week's worth of normalized game dicts (the shape produced
-    by assemble_season_weeks) as a table - shared by the Home page (current
-    week only) and Teams' per-week view. Each row shows the real matchup bar
-    (logos + short names) and, once a game is graded, a HIT/MISS
-    result instead of just a kickoff time - so "did we get it right" is
-    visible for the games in this week that have already been played."""
+    """The Home page's game table, kept to what a bettor needs: our moneyline
+    pick and its chance to win, our spread next to Vegas's, and our pick
+    against the Vegas spread with its chance to cover. Once a game is final,
+    the score and whether each pick hit. (The Teams tab keeps the fuller view
+    with totals.)"""
     if not week_games:
         return '<div class="empty-state">No games this week.</div>'
 
+    def two_line(top, sub, top_class="accent"):
+        return (f'<span class="ml-pick"><span class="ml-line"><span class="{top_class}">{top}</span></span>'
+                f'<span class="ml-sub">{sub}</span></span>')
+
     rows = ""
     for g in week_games:
-        disagree = g["vegas_favored_team"] is not None and g["favored_team"] != g["vegas_favored_team"]
+        ml, sp = g.get("ml"), g.get("spread")
+        if ml:
+            value = f' {pill("VALUE", "positive")}' if ml["value"] else ""
+            ml_html = two_line(f'{ml["team"]} {moneyline.format_price(ml["price"])}{value}', f'{ml["our"]:.0%} to win')
+        else:  # no book moneyline: still show who we pick and how likely
+            ml_html = two_line(g["favored_team"], f'{g["win_pct"]:.0%} to win')
+        ml_prob = ml["our"] if ml else g["win_pct"]
+        sp_html = (two_line(f'{sp["team"]} {sp["line"]}', f'{sp["prob"]:.0%} to cover')
+                   if sp else f'<span class="faint">{DASH}</span>')
         vegas_html = (f'<span class="market-color">{g["vegas_favored_team"]} -{g["vegas_favored_by"]:.1f}</span>'
                       if g["vegas_favored_team"] else f'<span class="faint">{DASH}</span>')
-        vegas_total_html = (f'<span class="market-color">{g["vegas_total"]:.1f}</span>'
-                             if g["vegas_total"] is not None else f'<span class="faint">{DASH}</span>')
-        our_line = f"{g['favored_team']} -{g['favored_by']:.1f}"
-        flip_note = f' {pill("DIFFERENT PICK", "danger")}' if disagree else ""
 
         if g["graded"]:
-            result_pill = pill("HIT", "positive") if g["correct"] else pill("MISS", "danger")
-            result_html = f'{g["away_score"]}-{g["home_score"]} {result_pill}'
+            # The score is already in the matchup bar; this says how each pick did.
+            ml_hit = ({"W": True, "L": False}.get(ml["result"]) if ml else g["correct"])
+            marks = []
+            if ml_hit is not None:
+                marks.append(pill("ML HIT", "positive") if ml_hit else pill("ML MISS", "danger"))
+            if g.get("covered") is not None:
+                marks.append(pill("ATS HIT", "positive") if g["covered"] else pill("ATS MISS", "danger"))
+            result_html = f'<span class="ml-pick">{"".join(marks)}</span>' if marks else f'<span class="faint">{DASH}</span>'
         else:
             result_html = f'<span class="faint">{DASH}</span>'
 
-        matchup_sort_value = f"{g['away_team']} @ {g['home_team']}"
-
         rows += f"""<tr>
-          <td data-key="matchup" data-value="{matchup_sort_value}">{g['matchup_html']}{flip_note}</td>
-          <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our Pick" class="num accent">{our_line}</td>
-          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num">{vegas_html}</td>
-          <td data-key="total" data-value="{g['total']:.2f}" data-label="Total" class="num"><span>{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</span></td>
-          <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num">{g['win_pct']:.0%}</td>
-          <td data-key="ml" data-value="{g['ml']['edge'] if g.get('ml') else -1:.3f}" data-label="Moneyline bet" class="num ml-cell">{ml_cell_html(g.get('ml'))}</td>
-          <td data-label="Result" class="num"><span>{result_html}</span></td>
+          <td data-key="matchup" data-value="{g['away_team']} @ {g['home_team']}">{g['matchup_html']}</td>
+          <td data-key="ml" data-value="{ml_prob:.3f}" data-label="Moneyline pick" class="num ml-cell">{ml_html}</td>
+          <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our spread" class="num">{g['favored_team']} -{g['favored_by']:.1f}</td>
+          <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas spread" class="num">{vegas_html}</td>
+          <td data-key="ats" data-value="{sp['prob'] if sp else -1:.3f}" data-label="Spread pick" class="num ml-cell">{sp_html}</td>
+          <td data-label="Result" class="num ml-cell">{result_html}</td>
         </tr>"""
 
-    return f"""<table class="data responsive-stack" data-sortable>
+    return f"""<table class="data responsive-stack slate" data-sortable>
       <thead><tr>
         <th data-sort-key="matchup">Matchup</th>
-        <th data-sort-key="ourline" class="num">Our Pick</th>
-        <th data-sort-key="vegas" class="num">Vegas</th>
-        <th data-sort-key="total" class="num">Total (us / vegas)</th>
-        <th data-sort-key="winpct" class="num">Win%</th>
-        <th data-sort-key="ml" class="num">Moneyline bet</th>
+        <th data-sort-key="ml" class="num">Moneyline pick</th>
+        <th data-sort-key="ourline" class="num">Our spread</th>
+        <th data-sort-key="vegas" class="num">Vegas spread</th>
+        <th data-sort-key="ats" class="num">Spread pick</th>
         <th class="num">Result</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does.
-      Moneyline bet is the team our model picks to win, at its moneyline price. {pill("VALUE", "positive")} means we
-      give that team at least 6 points more win chance than the price implies (vig removed), so the price is worth
-      taking. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
+    <div class="table-footnote muted">Moneyline pick is the team we pick to win, at its price, and our chance it wins.
+      {pill("VALUE", "positive")} means that chance beats the price by 6+ points. Spread pick is the side our spread
+      says will cover the Vegas spread, and our chance it covers (ATS means against the spread). Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -687,8 +717,6 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
     this_week = weeks.get(this_week_key) if this_week_key else None
     week_title = this_week["label"] if this_week else "Upcoming"
 
-    week_games_df = next_week_games(games)
-    edge_html = build_edge_cards(sport, comparison, week_games_df) if comparison is not None else ""
     slate_html = render_week_table(this_week["games"] if this_week else [])
     ml_season, ml = ml_record(sport, games, log)
     track_html = build_track_record_section(sport, accuracy_summary, top25_summary, build_moneyline_block(ml_season, ml))
@@ -696,7 +724,7 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
     subtitle = "Our model's pick and the Vegas line for every game this week, graded once played. The Teams tab has the full season."
     if not weeks and sport.get("no_games_note"):
         slate_html = f'<div class="empty-state">No games available yet. {sport["no_games_note"]}</div>'
-    body = edge_html + card(f"This Week's Slate: {week_title}", subtitle, slate_html) + track_html
+    body = card(f"This Week's Slate: {week_title}", subtitle, slate_html) + track_html
     return page_shell(sport, "Home", "index", body)
 
 WEEK_TYPE_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conf. Championship", "SB": "Super Bowl", "POST": "Postseason"}
@@ -715,6 +743,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
     model_pick()), not the market-mirroring blended line. Shared by both the
     Teams page (every week) and the Home page (just the current week)."""
     weeks = {}
+    sigma = spread_sigma(sport)
 
     # A week's games can be split across "already played" and "still upcoming"
     # (e.g. Thursday night graded, Sunday/Monday not yet) - append into the
@@ -748,7 +777,9 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "vegas_total": round(float(r["vegas_total"]), 1) if pd.notna(r.get("vegas_total")) else None,
                 "graded": True, "home_score": home_score, "away_score": away_score,
                 "correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
-                "ml": ml_view(sport, r),
+                "ml": ml_view(sport, r), "spread": spread_pick(sport, r, sigma),
+                "covered": None if pd.isna(r.get("model_ats_correct")) or r.get("model_ats_push") == 1
+                           else bool(r["model_ats_correct"]),
             })
 
     if not games.empty:
@@ -788,6 +819,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "vegas_total": round(float(r["total_line"]), 1) if has_vegas and pd.notna(r.get("total_line")) else None,
                 "graded": False, "home_score": None, "away_score": None, "correct": None,
                 "ml": ml_view(sport, ml_rows.get((int(r["week"]), r["home_team"], r["away_team"]))),
+                "spread": spread_pick(sport, r, sigma), "covered": None,
             })
 
     # Pre-rendered for the Teams page, whose table site.js draws client-side.
