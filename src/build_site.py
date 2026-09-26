@@ -32,6 +32,7 @@ Published to GitHub Pages by weekly-picks.yml. This script only builds the
 dist/ directory - the workflow's own steps upload and deploy it.
 """
 
+from html import escape
 import pandas as pd
 import numpy as np
 import games as games_mod
@@ -179,27 +180,44 @@ def ml_view(sport, r):
         result = "W" if won == 1 else "L"
     elif pd.notna(push) and push == 1:
         result = "P"
+    other = r["away_team"] if r.get("ml_pick_side") == "home" else r["home_team"]
     return {
+        "team": team_short(sport, r["ml_pick_team"]), "other": team_short(sport, other),
+        "price": float(r["ml_pick_price"]),
         "text": f"{team_short(sport, r['ml_pick_team'])} {moneyline.format_price(r['ml_pick_price'])}",
         "our": round(float(r["ml_our_prob"]), 3), "book": round(float(r["ml_book_prob"]), 3),
         "edge": round(float(r["ml_edge"]), 3), "value": moneyline.is_value(r.get("ml_value")),
         "result": result, "units": round(float(r["ml_units"]), 2) if pd.notna(r.get("ml_units")) else None,
     }
 
+def ml_payout(price):
+    """What a price means in dollars: '$100 pays $1,600' / 'Bet $150 to win $100'."""
+    price = float(price)
+    if price >= 100:
+        return f"$100 wins ${price:,.0f}"
+    return f"Bet ${-price:,.0f} to win $100"
+
 def ml_cell_html(ml):
-    """The Moneyline cell: pick and price, our win % vs the no-vig book %,
-    the edge, a VALUE tag at 3+ points, and W/L with units once graded."""
+    """The Moneyline cell, spelled out: which team to take and at what price,
+    what the price pays, our win % vs the book's (vig removed), a VALUE tag at
+    6+ points of edge (otherwise LEAN), and W/L with units once graded. When
+    the bet is on the team our model expects to lose, says so."""
     if not ml:
         return f'<span class="faint">{DASH}</span>'
-    tags = f' {pill("VALUE", "positive")}' if ml["value"] else ""
+    tags = f' {pill("VALUE", "positive")}' if ml["value"] else f' {pill("LEAN", "market")}'
     if ml["result"] == "W":
         tags += f' {pill("W " + moneyline.fmt_units(ml["units"]), "positive")}'
     elif ml["result"] == "L":
         tags += f' {pill("L " + moneyline.fmt_units(ml["units"]), "danger")}'
     elif ml["result"] == "P":
         tags += f' {pill("NO DECISION", "market")}'
-    return (f'<span class="ml-pick"><span class="ml-line"><span class="accent">{ml["text"]}</span>{tags}</span>'
-            f'<span class="ml-sub">our {ml["our"]:.0%} vs book {ml["book"]:.0%}, {ml["edge"] * 100:+.0f}</span></span>')
+    lines = [ml_payout(ml["price"]),
+             f'We give {ml["team"]} {ml["our"]:.0%}, the price implies {ml["book"]:.0%}']
+    if ml["our"] < 0.5:
+        lines.append(f'Long shot worth the price. We still pick {ml["other"]} to win')
+    sub = "".join(f'<span class="ml-sub">{escape(line)}</span>' for line in lines)
+    return (f'<span class="ml-pick"><span class="ml-line"><span class="accent">{ml["team"]} to win '
+            f'{moneyline.format_price(ml["price"])}</span>{tags}</span>{sub}</span>')
 
 _ASSET_VERSION = None
 
@@ -429,7 +447,7 @@ def render_week_table(week_games):
           <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas" class="num">{vegas_html}</td>
           <td data-key="total" data-value="{g['total']:.2f}" data-label="Total" class="num"><span>{g['total']:.1f} <span class="faint">/</span> {vegas_total_html}</span></td>
           <td data-key="winpct" data-value="{g['win_pct']:.3f}" data-label="Win%" class="num">{g['win_pct']:.0%}</td>
-          <td data-key="ml" data-value="{g['ml']['edge'] if g.get('ml') else -1:.3f}" data-label="Moneyline" class="num ml-cell">{ml_cell_html(g.get('ml'))}</td>
+          <td data-key="ml" data-value="{g['ml']['edge'] if g.get('ml') else -1:.3f}" data-label="Moneyline bet" class="num ml-cell">{ml_cell_html(g.get('ml'))}</td>
           <td data-label="Result" class="num"><span>{result_html}</span></td>
         </tr>"""
 
@@ -440,14 +458,16 @@ def render_week_table(week_games):
         <th data-sort-key="vegas" class="num">Vegas</th>
         <th data-sort-key="total" class="num">Total (us / vegas)</th>
         <th data-sort-key="winpct" class="num">Win%</th>
-        <th data-sort-key="ml" class="num">Moneyline</th>
+        <th data-sort-key="ml" class="num">Moneyline bet</th>
         <th class="num">Result</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
     <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does.
-      Moneyline is the side where our win chance beats the book's (vig removed) by more, at the book's price;
-      {pill("VALUE", "positive")} means an edge of 6 points or more. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
+      Moneyline bet is the team to take on the moneyline and its price: the side where our win chance beats the
+      chance the price implies (vig removed) by the most. It can be an underdog we still expect to lose, when the
+      payout is worth the risk. {pill("VALUE", "positive")} means our edge is 6 points or more; {pill("LEAN", "market")}
+      is a smaller edge. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
@@ -538,7 +558,7 @@ def build_moneyline_block(season, ml, with_label=True):
         (moneyline.fmt_units(ml["units"]), "Units", "1 unit risked per pick"),
         (moneyline.fmt_roi(ml["roi"]), "ROI", "return per unit risked"),
         (v["record"] if v["n_decided"] else DASH, "Value picks",
-         f"{moneyline.fmt_units(v['units'])}, ROI {moneyline.fmt_roi(v['roi'])}" if v["n_decided"] else "edge of 3+ points"),
+         f"{moneyline.fmt_units(v['units'])}, ROI {moneyline.fmt_roi(v['roi'])}" if v["n_decided"] else "edge of 6+ points"),
     ]
     statline = '<div class="statline">' + "".join(
         f'<div class="stat"><div class="stat-value">{val}</div><div class="stat-label">{lab}</div>'
