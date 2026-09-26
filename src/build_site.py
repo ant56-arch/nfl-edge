@@ -433,8 +433,34 @@ def card(title, subtitle, body_html):
     <div class="card-body">{body_html}</div>
   </section>"""
 
+def kick_sort_key(gameday, gametime, commence_time=None):
+    """'YYYY-MM-DD HH:MM' in Eastern time, for ordering a week's games by
+    kickoff: the schedule's own gametime when there is one, else the odds
+    feed's commence_time (UTC), else just the date (sorted after that day's
+    timed games)."""
+    if gametime is not None and pd.notna(gametime) and pd.notna(gameday):
+        hh, mm = (int(x) for x in str(gametime).split(":")[:2])
+        return f"{str(gameday)[:10]} {hh:02d}:{mm:02d}"
+    if commence_time is not None and pd.notna(commence_time):
+        try:
+            t = pd.Timestamp(commence_time)
+            t = (t.tz_localize("UTC") if t.tzinfo is None else t).tz_convert("America/New_York")
+            return t.strftime("%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            pass
+    return f"{str(gameday)[:10]} 99:99" if gameday is not None and pd.notna(gameday) else "9999"
+
+def day_label(gameday):
+    """'Saturday, Sep 26' from a YYYY-MM-DD date."""
+    try:
+        d = datetime.strptime(str(gameday)[:10], "%Y-%m-%d")
+    except ValueError:
+        return str(gameday)
+    return f"{d:%A}, {d:%b} {d.day}"
+
 def render_week_table(week_games):
-    """The Home page's game table, kept to what a bettor needs: our moneyline
+    """The Home page's game table, in kickoff order under a header per day,
+    kept to what a bettor needs: our moneyline
     pick and its chance to win, our spread next to Vegas's, and our pick
     against the Vegas spread with its chance to cover. Once a game is final,
     the score and whether each pick hit. (The Teams tab keeps the fuller view
@@ -447,7 +473,11 @@ def render_week_table(week_games):
                 f'<span class="ml-sub">{sub}</span></span>')
 
     rows = ""
-    for g in week_games:
+    last_day = None
+    for g in sorted(week_games, key=lambda g: g.get("kick_sort") or "9999"):
+        if g.get("gameday") and g["gameday"] != last_day:
+            last_day = g["gameday"]
+            rows += f'<tr class="day-header"><td colspan="6">{day_label(last_day)}</td></tr>'
         ml, sp = g.get("ml"), g.get("spread")
         if ml:
             value = f' {pill("VALUE", "positive")}' if ml["value"] else ""
@@ -778,6 +808,8 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "graded": True, "home_score": home_score, "away_score": away_score,
                 "correct": bool(r["model_correct_pick"]) if pd.notna(r.get("model_correct_pick")) else None,
                 "ml": ml_view(sport, r), "spread": spread_pick(sport, r, sigma),
+                "gameday": str(r.get("gameday"))[:10] if pd.notna(r.get("gameday")) else None,
+                "kick_sort": kick_sort_key(r.get("gameday"), None, r.get("ml_commence_time")),
                 "covered": None if pd.isna(r.get("model_ats_correct")) or r.get("model_ats_push") == 1
                            else bool(r["model_ats_correct"]),
             })
@@ -820,6 +852,8 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "graded": False, "home_score": None, "away_score": None, "correct": None,
                 "ml": ml_view(sport, ml_rows.get((int(r["week"]), r["home_team"], r["away_team"]))),
                 "spread": spread_pick(sport, r, sigma), "covered": None,
+                "gameday": str(r.get("gameday"))[:10] if pd.notna(r.get("gameday")) else None,
+                "kick_sort": kick_sort_key(r.get("gameday"), r.get("gametime"), r.get("ml_commence_time")),
             })
 
     # Pre-rendered for the Teams page, whose table site.js draws client-side.
