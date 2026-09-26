@@ -11,23 +11,21 @@ name: Weekly Picks
 on:
   workflow_dispatch:
   schedule:
-    # Non-game days (Tue/Wed/Fri/Sat): refresh every 12 hours so injury
-    # reports, line movement, and the model's own weekly refit all show up
-    # reasonably fresh without needing a run timed to any specific event.
-    # Saturday (college football's main day) rides this same cadence rather
-    # than a kickoff-timed slot - CFB kickoffs are spread from noon to
-    # midnight ET, so no single "1hr before kickoff" time fits it the way it
-    # does the NFL's few distinct windows.
-    - cron: "0 */12 * * 2,3,5,6"
-    # Game days: one run timed to roughly an hour before that day's earliest
-    # kickoff instead of the flat 12h cadence, so the site is freshly built
-    # right before people are actually checking it pre-game. Times are ET
-    # kickoffs converted to UTC assuming EDT (UTC-4); they'll be an hour
-    # early once the fall DST changeover hits EST (UTC-5) - already discussed
-    # and accepted as fine rather than maintaining two seasonal schedules.
-    - cron: "15 23 * * 4"  # Thursday - ~1hr before the 8:15pm ET TNF kickoff
-    - cron: "0 16 * * 0"   # Sunday - ~1hr before the 1:00pm ET early slate
-    - cron: "15 23 * * 1"  # Monday - ~1hr before the 8:15pm ET MNF kickoff
+    # Times are ET converted to UTC assuming EDT (UTC-4); after the fall DST
+    # change to EST they land an hour earlier in ET. GitHub often starts
+    # scheduled runs late, so the minutes are off the top of the hour, where
+    # the queue is busiest. Each run spends about 6 odds-API credits (500 a
+    # month): 16 runs a week is about 410 a month.
+    # Saturday (college football): 12 PM, 4 PM, 7 PM and 11 PM ET, so scores,
+    # results and lines stay fresh through the day's games.
+    - cron: "5 16,20,23 * * 6"
+    - cron: "5 3 * * 0"        # Saturday 11 PM ET (03:05 UTC Sunday)
+    # Every other day, twice: 8 AM ET on weekdays, and 7:15 PM ET Sunday to
+    # Friday (about an hour before the TNF, SNF and MNF kickoffs).
+    - cron: "5 12 * * 1-5"
+    - cron: "15 23 * * 0-5"
+    # Sunday's first run is at noon ET, an hour before the NFL early slate.
+    - cron: "5 16 * * 0"
 
 permissions:
   contents: write
