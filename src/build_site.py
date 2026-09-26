@@ -200,11 +200,11 @@ def ml_payout(price):
 def ml_cell_html(ml):
     """The Moneyline cell, spelled out: which team to take and at what price,
     what the price pays, our win % vs the book's (vig removed), a VALUE tag at
-    6+ points of edge (otherwise LEAN), and W/L with units once graded. When
-    the bet is on the team our model expects to lose, says so."""
+    6+ points of edge, and W/L with units once graded. The bet is always the
+    team our model picks to win."""
     if not ml:
         return f'<span class="faint">{DASH}</span>'
-    tags = f' {pill("VALUE", "positive")}' if ml["value"] else f' {pill("LEAN", "market")}'
+    tags = f' {pill("VALUE", "positive")}' if ml["value"] else ""
     if ml["result"] == "W":
         tags += f' {pill("W " + moneyline.fmt_units(ml["units"]), "positive")}'
     elif ml["result"] == "L":
@@ -213,8 +213,6 @@ def ml_cell_html(ml):
         tags += f' {pill("NO DECISION", "market")}'
     lines = [ml_payout(ml["price"]),
              f'We give {ml["team"]} {ml["our"]:.0%}, the price implies {ml["book"]:.0%}']
-    if ml["our"] < 0.5:
-        lines.append(f'Long shot worth the price. We still pick {ml["other"]} to win')
     sub = "".join(f'<span class="ml-sub">{escape(line)}</span>' for line in lines)
     return (f'<span class="ml-pick"><span class="ml-line"><span class="accent">{ml["team"]} to win '
             f'{moneyline.format_price(ml["price"])}</span>{tags}</span>{sub}</span>')
@@ -464,10 +462,9 @@ def render_week_table(week_games):
       <tbody>{rows}</tbody>
     </table>
     <div class="table-footnote muted">{pill("DIFFERENT PICK", "danger")} means our model favors a different team than Vegas does.
-      Moneyline bet is the team to take on the moneyline and its price: the side where our win chance beats the
-      chance the price implies (vig removed) by the most. It can be an underdog we still expect to lose, when the
-      payout is worth the risk. {pill("VALUE", "positive")} means our edge is 6 points or more; {pill("LEAN", "market")}
-      is a smaller edge. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
+      Moneyline bet is the team our model picks to win, at its moneyline price. {pill("VALUE", "positive")} means we
+      give that team at least 6 points more win chance than the price implies (vig removed), so the price is worth
+      taking. Locked at kickoff and graded at 1 unit. Select a column header to sort.</div>"""
 
 def build_edge_cards(sport, comparison, week_games, max_cards=3):
     if comparison is None or comparison.empty:
