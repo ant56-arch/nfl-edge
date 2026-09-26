@@ -21,6 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from fetch_cfb_data import current_cfb_season
+import games as espn
 import moneyline
 
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
@@ -90,12 +91,67 @@ def upsert_snapshot(log, snapshot):
         log.loc[snapshot_indexed.index, col] = snapshot_indexed[col]
     return log.reset_index()
 
+def espn_final_scores(log, scored):
+    """Final scores from ESPN's scoreboard for logged games CFBD hasn't scored
+    yet. CFBD can take hours (sometimes until the next day) to post a result,
+    while ESPN has it the moment a game ends, so on a college football
+    Saturday this is what lets results show up during the day. Keyed like
+    the log; returns an empty frame when ESPN is unreachable."""
+    cols = KEY_COLS + ["home_score", "away_score"]
+    if log is None or log.empty or "gameday" not in log.columns:
+        return pd.DataFrame(columns=cols)
+    today = pd.Timestamp.now(tz="America/New_York").strftime("%Y-%m-%d")
+    pending = log[log["gameday"].notna() & (log["gameday"].astype(str) <= today)]
+    def key(r):
+        return (int(r["season"]), int(r["week"]), r["home_team"], r["away_team"])
+    have = {key(r) for _, r in scored.iterrows()}
+    pending = pending[[key(r) not in have for _, r in pending.iterrows()]]
+    if pending.empty:
+        return pd.DataFrame(columns=cols)
+
+    known = sorted(set(log["home_team"]) | set(log["away_team"]), key=len, reverse=True)
+
+    def school(team):
+        if team.get("location") in known:
+            return team["location"]
+        return next((k for k in known if team.get("name", "").startswith(k)), None)
+
+    finals = {}
+    for day in sorted(pending["gameday"].astype(str).unique()):
+        params = dict(espn.SPORTS["cfb"]["params"], dates=day.replace("-", ""))
+        data = espn._get(espn.ESPN + espn.SPORTS["cfb"]["path"] + "/scoreboard", params)
+        for event in (data or {}).get("events", []):
+            g = espn.parse(event)
+            if not g or g["state"] != "post" or g["home"]["score"] is None or g["away"]["score"] is None:
+                continue
+            home, away = school(g["home"]), school(g["away"])
+            if home and away:
+                finals[(home, away)] = (g["home"]["score"], g["away"]["score"])
+
+    rows = []
+    for _, r in pending.iterrows():
+        key = (r["home_team"], r["away_team"])
+        if key in finals:
+            h, a = finals[key]
+        elif key[::-1] in finals:  # neutral site listed the other way round
+            a, h = finals[key[::-1]]
+        else:
+            continue
+        rows.append({**{c: r[c] for c in KEY_COLS}, "home_score": h, "away_score": a})
+    print(f"  ESPN final scores filled in for {len(rows)} game(s) CFBD hasn't posted yet")
+    return pd.DataFrame(rows, columns=cols)
+
 def grade_completed_games(log):
     games_path = os.path.join(RAW_DIR, "cfb_games.csv")
     if not os.path.exists(games_path):
         return log
     schedules = pd.read_csv(games_path)
     results = schedules[schedules["home_score"].notna() & schedules["away_score"].notna()][KEY_COLS + ["home_score", "away_score"]]
+    # CFBD wins when it has a score; ESPN fills in the games it hasn't posted yet.
+    espn_results = espn_final_scores(log, results)
+    if not espn_results.empty:
+        espn_results = espn_results.astype({"season": results["season"].dtype, "week": results["week"].dtype}, errors="ignore")
+        results = pd.concat([results, espn_results], ignore_index=True).drop_duplicates(KEY_COLS, keep="first")
 
     log = log.drop(columns=[c for c in ["home_score", "away_score"] if c in log.columns])
     log = log.merge(results, on=KEY_COLS, how="left")
@@ -130,7 +186,9 @@ def grade_completed_games(log):
         push = cover_margin == 0
         home_covered = cover_margin > 0
         picked_covered = pd.Series(np.where(log[spread_col] >= 0, home_covered, ~home_covered), index=log.index)
-        log.loc[graded, f"{label}_ats_push"] = push[graded]
+        # As floats: on the first-ever grade this column comes back from the CSV as
+        # all-NaN float64, and pandas refuses to write bools into it.
+        log.loc[graded, f"{label}_ats_push"] = push[graded].astype(float)
         decided = graded & ~push
         if decided.any():
             log.loc[decided, f"{label}_ats_correct"] = picked_covered[decided].astype(float)
