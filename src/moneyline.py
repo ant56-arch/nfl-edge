@@ -7,9 +7,8 @@ way on the MLB and NBA sites):
      removed by normalizing the two to sum to 1.
   2. Our model's win probability for each side (the pure, unblended model -
      the same number the site shows as "Win%") is compared with that no-vig
-     book probability. The pick is the side with the larger edge
-     (ours minus book's). With two sides that is simply whichever side our
-     model likes more than the market does.
+     book probability. The pick is always the team our model picks to win,
+     at its price; its edge is our win % minus the book's.
   3. It's labeled Value when that edge is at least 6 percentage points.
      Every game with a book moneyline still gets a pick either way.
   4. Once final, a pick is graded at 1 unit risked at the book price: a win
@@ -72,10 +71,8 @@ def pick_for_game(home_team, away_team, model_home_prob, home_price, away_price)
     if pd.isna(book_home):
         return None
     ours_home = float(model_home_prob)
-    edge_home = ours_home - book_home
-    edge_away = (1 - ours_home) - book_away
-    home = edge_home >= edge_away
-    edge = edge_home if home else edge_away
+    home = ours_home >= 0.5
+    edge = ours_home - book_home if home else (1 - ours_home) - book_away
     return {
         "ml_home_price": float(home_price),
         "ml_away_price": float(away_price),
