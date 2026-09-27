@@ -683,11 +683,27 @@ def build_track_record_section(sport, summary, ml_season=None, ml=None, log=None
       spread. Value picks are the moneyline picks tagged VALUE. Picks lock at kickoff.</div>"""
     return card(title, subtitle, statline + note)
 
+TOP_PLAYERS = 10
+
+def anytime_td_prob(rush_tds, rec_tds):
+    """Chance a player scores at least one rushing or receiving TD, treating
+    the projected TD count as a Poisson mean (passing TDs don't count)."""
+    lam = (0 if pd.isna(rush_tds) else float(rush_tds)) + (0 if pd.isna(rec_tds) else float(rec_tds))
+    return 1 - math.exp(-lam)
+
 def build_players_page(sport, props):
+    if not props.empty:
+        props = props.copy()
+        props["td_total"] = props.reindex(columns=["proj_rush_tds", "proj_rec_tds"]).fillna(0).sum(axis=1).round(2)
+        props["td_prob"] = [f"{anytime_td_prob(r, c) * 100:.0f}%" for r, c in
+                            zip(props.get("proj_rush_tds", np.nan), props.get("proj_rec_tds", np.nan))]
+        for c in ("proj_rush_tds", "proj_rec_tds"):
+            if c in props.columns:
+                props[c] = props[c].fillna(0)
     def table(stat_cols, cat_id, active):
         if props.empty or stat_cols["sort"] not in props.columns:
             return ""
-        top = props.dropna(subset=[stat_cols["sort"]]).sort_values(stat_cols["sort"], ascending=False).head(20).reset_index(drop=True)
+        top = props.dropna(subset=[stat_cols["sort"]]).sort_values(stat_cols["sort"], ascending=False).head(TOP_PLAYERS).reset_index(drop=True)
         if top.empty:
             return ""
         headers = "".join(f'<th data-sort-key="{c}" class="num">{h}</th>' for c, h in zip(stat_cols["display"], stat_cols["headers"]))
@@ -723,18 +739,21 @@ def build_players_page(sport, props):
                       "headers": ["Car", "Yds", "TDs"], "matchup_col": "matchup_mult_rush"}, "rushing", False)
     receiving = table({"sort": "proj_rec_yards", "display": ["proj_targets", "proj_receptions", "proj_rec_yards", "proj_rec_tds"],
                         "headers": ["Tgt", "Rec", "Yds", "TDs"], "matchup_col": "matchup_mult_rec"}, "receiving", False)
+    scorers = table({"sort": "td_total", "display": ["proj_rush_tds", "proj_rec_tds", "td_prob"],
+                     "headers": ["Rush TDs", "Rec TDs", "To score"]}, "td", False)
 
-    if not (passing or rushing or receiving):
+    if not (passing or rushing or receiving or scorers):
         body = '<div class="empty-state">No player projections available yet.</div>'
-        return page_shell(sport, "Players", "players", card("Player Projections", "Top 20 per category by projected yards", body))
+        return page_shell(sport, "Players", "players", card("Player Projections", "Top 10 per category", body))
 
     subtabs = f"""<div class="subtabs">
       <button type="button" class="subtab active" aria-pressed="true" data-target="cat-passing">Passing</button>
       <button type="button" class="subtab" aria-pressed="false" data-target="cat-rushing">Rushing</button>
       <button type="button" class="subtab" aria-pressed="false" data-target="cat-receiving">Receiving</button>
+      <button type="button" class="subtab" aria-pressed="false" data-target="cat-td">TD Scorers</button>
     </div>"""
-    body = subtabs + passing + rushing + receiving
-    card_html = card("Player Projections", "Top 20 per category by projected yards. Select a column header to sort.", body)
+    body = subtabs + passing + rushing + receiving + scorers
+    card_html = card("Player Projections", "Top 10 per category by projected yards. TD Scorers ranks the most likely rushing or receiving touchdowns (passing TDs don't count).", body)
     return page_shell(sport, "Players", "players", card_html)
 
 def display_season(sport, games, log):

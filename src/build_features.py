@@ -30,6 +30,19 @@ os.makedirs(PROCESSED_DIR, exist_ok=True)
 PLAYER_HALF_LIFE_PATH = os.path.join(os.path.dirname(__file__), "models", "fitted_props_coefficients.json")
 DEFAULT_PLAYER_HALF_LIFE = 6  # used only until fit_props_model.py has produced a fitted value
 
+# Per-play efficiency rates that are volume-weighted and shrunk toward the
+# league rate: (rate column, numerator, volume, pseudo-volume). Averaging
+# per-game rates let a 1-target, 1-TD game count as much as a 10-target game,
+# so a backup with 3 lucky catches projected for 80 yards and a TD. The
+# pseudo-volumes were picked on a 2025-26 walk-forward backtest (anytime-TD
+# Brier 0.142 -> 0.135 receiving, 0.135 -> 0.129 rushing; yards MAE down too).
+SHRUNK_RATES = [
+    ("yards_per_target", "rec_yards", "targets", 30),
+    ("rec_td_rate", "rec_tds", "targets", 150),
+    ("yards_per_carry", "rush_yards", "carries", 200),
+    ("rush_td_rate", "rush_tds", "carries", 150),
+]
+
 RECENCY_HALF_LIFE_GAMES = 4  # a game 4 weeks ago counts half as much as this week (default until fit_model.py picks one)
 TEAM_HALF_LIFE_PATH = os.path.join(os.path.dirname(__file__), "models", "fitted_coefficients.json")
 
@@ -182,6 +195,25 @@ def apply_recency_weighting(game_stats, group_cols, metric_cols, half_life=RECEN
 
     return pd.DataFrame(results)
 
+def shrunk_rates(player_game_stats, half_life):
+    """Each player's SHRUNK_RATES: recency-weighted numerator over
+    recency-weighted volume, pulled toward the league rate by a fixed
+    pseudo-volume, so small samples land near league average."""
+    league = {}
+    for rate, num, vol, _ in SHRUNK_RATES:
+        league[rate] = player_game_stats[num].fillna(0).sum() / player_game_stats[vol].fillna(0).sum()
+    rows = []
+    for pid, g in player_game_stats.groupby("player_id"):
+        g = g.sort_values(["season", "week"]).reset_index(drop=True)
+        w = np.array([recency_weight(x, half_life) for x in (len(g) - 1) - g.index])
+        row = {"player_id": pid}
+        for rate, num, vol, k in SHRUNK_RATES:
+            wv = (w * g[vol].fillna(0).values).sum()
+            wn = (w * g[num].fillna(0).values).sum()
+            row[rate] = (wn + league[rate] * k) / (wv + k)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
 def build_player_game_stats(pbp):
     """
     Usage + efficiency stats for skill-position players, ONE ROW PER GAME
@@ -298,6 +330,8 @@ def main():
         player_game_stats, "player_id", player_metrics, half_life=player_half_life,
         key_col="player_id", volume_cols=["targets", "carries", "pass_attempts"],
     )
+    rates = shrunk_rates(player_game_stats, player_half_life)
+    player_current_form = player_current_form.drop(columns=[r[0] for r in SHRUNK_RATES]).merge(rates, on="player_id", how="left")
     # player_name/team drift as players change teams - always take the most
     # recent game's values for display/roster-mapping purposes.
     latest = player_game_stats.sort_values(["season", "week"]).groupby("player_id").last().reset_index()
