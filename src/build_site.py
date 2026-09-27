@@ -625,50 +625,42 @@ def build_moneyline_block(season, ml, with_label=True):
             '0.67, a loss costs 1. Ties count as no decision. This season\'s live picks only.</div>')
     return label + statline + note
 
-def build_track_record_section(sport, summary, top25_summary=None, ml_html=""):
-    top25_html = ml_html + build_top25_block(top25_summary)
-    live_start = sport["live_tracking_start_season"]
-    if summary is None:
-        body = '<div class="empty-state">No games graded yet. Results appear here after the first week is played.</div>' + top25_html
-        return card("Track Record", "Picks graded against final scores", body)
+def build_track_record_section(sport, summary, ml_season=None, ml=None):
+    """Home's Track Record: how OUR picks - the ones in the slate table above
+    - have done this season. Moneyline picks are graded in units at the price
+    we listed; spread picks are our side against the Vegas spread. This
+    season's live picks only, never backtests."""
+    title, subtitle = "Our Track Record", "How the picks above have done this season"
+    year = (summary or {}).get("current_season_year") or ml_season
+    ours = (summary or {}).get("current_season", {}).get("model")
+    if not ours and not ml:
+        return card(title, subtitle, '<div class="empty-state">No games graded yet this season. '
+                    'Results show up here once the first picks are final.</div>')
 
-    year = summary.get("current_season_year", "")
-    since = sport["ats_since_year"]
-    # Vegas's own record, not the model's. The site's displayed pick defers
-    # fully to the market for the straight-up spread call (0% model weight
-    # there - see fitted_coefficients.json), so this IS what "our pick"
-    # actually follows; showing the model's separate, weaker record next to
-    # it read as confusing/misleading rather than transparent.
-    current = summary.get("current_season", {}).get("vegas")
-    all_time = summary.get("all_time", {}).get("vegas")
+    def units(u):
+        return f"up {u:.2f} units" if u > 0 else (f"down {-u:.2f} units" if u < 0 else "even")
 
-    if not current:
-        body = f'<div class="empty-state">No {year} games graded yet.</div>' + top25_html
-        return card("Track Record", "Picks graded against final scores", body)
-
-    # A box-score style stat line for this season's headline numbers, then a
-    # plain table comparing this season with the full graded history.
-    stats = [(current["record"], f"{year} straight-up", pct(current.get("pick_accuracy")))]
-    if current.get("ats_accuracy") is not None:
-        stats.append((current["ats_record"], f"{year} against the spread", pct(current.get("ats_accuracy"))))
-    stats.append((str(summary["n_graded_games"]), "Games graded", f"since {since}"))
-    stats.append((str(live_start), "Live tracking since", f"{since}-{live_start - 1} backfilled" if since < live_start else ""))
+    stats = []
+    if ml:
+        pushes = f", {ml['pushes']} no decision" if ml["pushes"] else ""
+        stats.append((ml["record"], "Moneyline picks",
+                      f"{units(ml['units'])}{pushes}"))
+    if ours and ours.get("ats_accuracy") is not None:
+        pushes = f", {ours['ats_pushes']} push" if ours.get("ats_pushes") else ""
+        stats.append((ours["ats_record"], "Spread picks", f"covered {pct(ours['ats_accuracy'])}{pushes}"))
+    if ml and ml["value"]["n_decided"]:
+        v = ml["value"]
+        stats.append((v["record"], "Value picks", units(v["units"])))
+    if ours:
+        stats.append((str(ours["n_games"]), "Games graded", f"{year} season"))
     statline = '<div class="statline">' + "".join(
-        f'<div class="stat"><div class="stat-value">{v}</div><div class="stat-label">{label}</div>'
-        f'<div class="stat-sub">{sub}</div></div>'
-        for v, label, sub in stats) + "</div>"
+        f'<div class="stat"><div class="stat-value">{val}</div><div class="stat-label">{lab}</div>'
+        f'<div class="stat-sub">{sub}</div></div>' for val, lab, sub in stats) + "</div>"
 
-    rows = record_row(f"{year} season", current)
-    if all_time:
-        rows += record_row(f"Since {since}", all_time)
-
-    note = f"""<div class="table-footnote">These are Vegas's closing-line results from {since} on, not a separate
-      in-house number. For the straight-up call our displayed pick follows the market, because backtesting found
-      no edge in overriding it. Against the spread is the harder test: the line is set so each side should
-      cover about half the time.</div>"""
-
-    body = statline + record_table(rows) + note + top25_html
-    return card("Track Record", f"Vegas's closing-line record, {since} to now", body)
+    note = """<div class="table-footnote">Moneyline picks: wins and losses on our pick to win, and the units you'd be
+      up or down betting 1 unit on each at the listed price. Spread picks: how often our side covered the Vegas
+      spread. Value picks are the moneyline picks tagged VALUE. Picks lock at kickoff.</div>"""
+    return card(title, subtitle, statline + note)
 
 def build_players_page(sport, props):
     def table(stat_cols, cat_id, active):
@@ -749,7 +741,7 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
 
     slate_html = render_week_table(this_week["games"] if this_week else [])
     ml_season, ml = ml_record(sport, games, log)
-    track_html = build_track_record_section(sport, accuracy_summary, top25_summary, build_moneyline_block(ml_season, ml))
+    track_html = build_track_record_section(sport, accuracy_summary, ml_season, ml)
 
     subtitle = "Our model's pick and the Vegas line for every game this week, graded once played. The Teams tab has the full season."
     if not weeks and sport.get("no_games_note"):
