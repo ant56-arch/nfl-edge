@@ -13,6 +13,7 @@ roughly 24 credits/month - comfortably within the free allowance.
 import requests
 import pandas as pd
 import os
+import moneyline
 
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 
@@ -119,7 +120,11 @@ def fetch_nfl_odds():
     games = response.json()
     rows = [extract_game_odds(g) for g in games]
     rows = [r for r in rows if r is not None]
-    return pd.DataFrame(rows)
+    odds = pd.DataFrame(rows)
+    upcoming = moneyline.upcoming_only(odds)
+    if len(upcoming) < len(odds):
+        print(f"  Skipped {len(odds) - len(upcoming)} game(s) already under way (live lines aren't used)")
+    return upcoming
 
 def main():
     print("Fetching NFL odds from the-odds-api.com...")

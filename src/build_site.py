@@ -207,6 +207,26 @@ def spread_pick(sport, r, sigma):
             "line": line_text,
             "prob": round(0.5 * (1 + math.erf(abs(diff) / sigma / math.sqrt(2))), 3)}
 
+def spread_result(r):
+    """How our spread pick did once final: True if our side covered the Vegas
+    spread, False if not, None for a push, no pick or no final yet."""
+    vegas, model, margin = r.get("vegas_home_favored_by"), r.get("model_spread"), r.get("actual_margin")
+    if pd.isna(vegas) or pd.isna(model) or pd.isna(margin) or float(model) == float(vegas):
+        return None
+    cover = float(margin) - float(vegas)
+    if cover == 0:
+        return None
+    return (cover > 0) == (float(model) > float(vegas))
+
+def spread_record(log, season):
+    """(wins, losses, pushes) for this season's spread picks against Vegas."""
+    if log is None or log.empty or "actual_margin" not in log.columns:
+        return 0, 0, 0
+    done = log[(log["season"] == season) & log["actual_margin"].notna() & log["vegas_home_favored_by"].notna()
+               & log["model_spread"].notna() & (log["model_spread"] != log["vegas_home_favored_by"])]
+    results = [spread_result(r) for _, r in done.iterrows()]
+    return results.count(True), results.count(False), results.count(None)
+
 def spread_sigma(sport):
     """The model's typical miss on the margin, in points (margin_std_dev)."""
     coefs = load_coefficients(sport)
@@ -625,7 +645,7 @@ def build_moneyline_block(season, ml, with_label=True):
             '0.67, a loss costs 1. Ties count as no decision. This season\'s live picks only.</div>')
     return label + statline + note
 
-def build_track_record_section(sport, summary, ml_season=None, ml=None):
+def build_track_record_section(sport, summary, ml_season=None, ml=None, log=None):
     """Home's Track Record: how OUR picks - the ones in the slate table above
     - have done this season. Moneyline picks are graded in units at the price
     we listed; spread picks are our side against the Vegas spread. This
@@ -645,9 +665,10 @@ def build_track_record_section(sport, summary, ml_season=None, ml=None):
         pushes = f", {ml['pushes']} no decision" if ml["pushes"] else ""
         stats.append((ml["record"], "Moneyline picks",
                       f"{units(ml['units'])}{pushes}"))
-    if ours and ours.get("ats_accuracy") is not None:
-        pushes = f", {ours['ats_pushes']} push" if ours.get("ats_pushes") else ""
-        stats.append((ours["ats_record"], "Spread picks", f"covered {pct(ours['ats_accuracy'])}{pushes}"))
+    wins, losses, pushes = spread_record(log, year)
+    if wins + losses:
+        push_note = f", {pushes} push" if pushes else ""
+        stats.append((f"{wins}-{losses}", "Spread picks", f"covered {pct(wins / (wins + losses))}{push_note}"))
     if ml and ml["value"]["n_decided"]:
         v = ml["value"]
         stats.append((v["record"], "Value picks", units(v["units"])))
@@ -741,7 +762,7 @@ def build_index_page(sport, games, props, comparison, accuracy_summary, log, top
 
     slate_html = render_week_table(this_week["games"] if this_week else [])
     ml_season, ml = ml_record(sport, games, log)
-    track_html = build_track_record_section(sport, accuracy_summary, ml_season, ml)
+    track_html = build_track_record_section(sport, accuracy_summary, ml_season, ml, log)
 
     subtitle = "Our model's pick and the Vegas line for every game this week, graded once played. The Teams tab has the full season."
     if not weeks and sport.get("no_games_note"):
@@ -802,8 +823,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "ml": ml_view(sport, r), "spread": spread_pick(sport, r, sigma),
                 "gameday": str(r.get("gameday"))[:10] if pd.notna(r.get("gameday")) else None,
                 "kick_sort": kick_sort_key(r.get("gameday"), None, r.get("ml_commence_time")),
-                "covered": None if pd.isna(r.get("model_ats_correct")) or r.get("model_ats_push") == 1
-                           else bool(r["model_ats_correct"]),
+                "covered": spread_result(r),
             })
 
     if not games.empty:
@@ -823,6 +843,10 @@ def assemble_season_weeks(sport, games, log, comparison, season):
     if not log.empty and "ml_pick_side" in log.columns:
         for _, c in log[(log["season"] == season) & log["ml_pick_side"].notna()].iterrows():
             ml_rows[(int(c["week"]), c["home_team"], c["away_team"])] = c
+    log_lines = {}
+    if not log.empty and "vegas_home_favored_by" in log.columns:
+        for _, c in log[(log["season"] == season) & log["vegas_home_favored_by"].notna()].iterrows():
+            log_lines[(int(c["week"]), c["home_team"], c["away_team"])] = (c["vegas_home_favored_by"], c.get("vegas_total"))
     for wk, g in upcoming.groupby("week"):
         bucket = week_bucket(wk, g["game_type"].iloc[0] if "game_type" in g.columns else None)
         merged = g.merge(vegas_cols, on=["home_team", "away_team"], how="left") if vegas_cols is not None else g
@@ -831,6 +855,13 @@ def assemble_season_weeks(sport, games, log, comparison, season):
             if (r["week"], r["home_team"], r["away_team"]) in already_graded:
                 continue  # stale/duplicate row - the tracking log already has the final result
             pick = model_pick(r)
+            locked = log_lines.get((int(r["week"]), r["home_team"], r["away_team"]))
+            if pd.isna(r.get("vegas_home_favored_by")) and locked is not None:
+                # Under way: the odds feed no longer lists it, so show the
+                # line the tracking log locked in before kickoff.
+                r = r.copy()
+                r["vegas_home_favored_by"], r["total_line"] = locked
+                r["vegas_favored_team"] = r["home_team"] if locked[0] > 0 else r["away_team"]
             has_vegas = pd.notna(r.get("vegas_home_favored_by"))
             kickoff = format_kickoff(r.get("weekday"), r.get("gametime"))
             bucket["games"].append({

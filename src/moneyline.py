@@ -104,6 +104,36 @@ def add_pick_columns(df, model_prob_col="model_home_win_prob"):
     return df
 
 
+def upcoming_only(odds, now=None):
+    """Drops games whose kickoff (commence_time) has passed. The odds feed
+    keeps listing a game after kickoff with live, in-game lines (a 3-point
+    favorite can show -28.5 by the fourth quarter), and those must never
+    reach the site or the tracking log."""
+    if odds is None or odds.empty or "commence_time" not in odds.columns:
+        return odds
+    now = now if now is not None else pd.Timestamp.now(tz="UTC")
+    kickoff = pd.to_datetime(odds["commence_time"], utc=True, errors="coerce")
+    return odds[kickoff.isna() | (kickoff > now)].reset_index(drop=True)
+
+
+def kicked_off(log, now=None):
+    """True for each logged game that has already started: its kickoff time
+    (ml_commence_time) is past, or, with no kickoff time, its date is before
+    today in Eastern time."""
+    now = now if now is not None else pd.Timestamp.now(tz="UTC")
+    started = pd.Series(False, index=log.index)
+    if "ml_commence_time" in log.columns:
+        kickoff = pd.to_datetime(log["ml_commence_time"], utc=True, errors="coerce")
+        started |= kickoff.notna() & (kickoff <= now)
+    else:
+        kickoff = pd.Series(pd.NaT, index=log.index)
+    if "gameday" in log.columns:
+        today = now.tz_convert("America/New_York").strftime("%Y-%m-%d")
+        day = log["gameday"].astype(str).str[:10]
+        started |= kickoff.isna() & log["gameday"].notna() & (day < today)
+    return started
+
+
 def lock_and_merge(log, snapshot, key_cols, now=None):
     """Writes each snapshot game's moneyline fields into the log, but only
     for games whose kickoff is still ahead. A game already started keeps

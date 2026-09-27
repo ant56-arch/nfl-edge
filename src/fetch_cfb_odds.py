@@ -17,6 +17,7 @@ just spends a few more of the same free-tier credits on a second sport).
 import requests
 import pandas as pd
 import os
+import moneyline
 
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 
@@ -104,7 +105,11 @@ def fetch_cfb_odds():
     games = response.json()
     rows = [extract_game_odds(g, known_teams) for g in games]
     rows = [r for r in rows if r is not None]
-    return pd.DataFrame(rows)
+    odds = pd.DataFrame(rows)
+    upcoming = moneyline.upcoming_only(odds)
+    if len(upcoming) < len(odds):
+        print(f"  Skipped {len(odds) - len(upcoming)} game(s) already under way (live lines aren't used)")
+    return upcoming
 
 def main():
     print("Fetching CFB odds from the-odds-api.com...")

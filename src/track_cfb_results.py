@@ -82,8 +82,15 @@ def upsert_snapshot(log, snapshot):
     if log is None or log.empty:
         return snapshot
 
+    # Lines and predictions lock at kickoff: a game already under way (or
+    # over) keeps what was logged before it started, so a run during the game
+    # can't swap in live odds or a refit model's number.
+    started = log.loc[moneyline.kicked_off(log), KEY_COLS]
+    locked = pd.MultiIndex.from_frame(started) if not started.empty else None
     log = log.set_index(KEY_COLS)
     snapshot_indexed = snapshot.set_index(KEY_COLS)
+    if locked is not None:
+        snapshot_indexed = snapshot_indexed[~snapshot_indexed.index.isin(locked)]
     log = log.reindex(log.index.union(snapshot_indexed.index))
     for col in snapshot_indexed.columns:
         if col not in log.columns:
