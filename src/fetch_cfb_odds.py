@@ -106,9 +106,9 @@ def fetch_cfb_odds():
     rows = [extract_game_odds(g, known_teams) for g in games]
     rows = [r for r in rows if r is not None]
     odds = pd.DataFrame(rows)
-    upcoming = moneyline.upcoming_only(odds)
+    upcoming = moneyline.upcoming_only(odds, friday_lock=True)
     if len(upcoming) < len(odds):
-        print(f"  Skipped {len(odds) - len(upcoming)} game(s) already under way (live lines aren't used)")
+        print(f"  Skipped {len(odds) - len(upcoming)} game(s) whose lines are locked (Friday 9 PM ET, or under way)")
     return upcoming
 
 def main():

@@ -82,15 +82,26 @@ def upsert_snapshot(log, snapshot):
     if log is None or log.empty:
         return snapshot
 
-    # Lines and predictions lock at kickoff: a game already under way (or
-    # over) keeps what was logged before it started, so a run during the game
-    # can't swap in live odds or a refit model's number.
-    started = log.loc[moneyline.kicked_off(log), KEY_COLS]
+    # Lines and predictions lock Friday at 9 PM ET for weekend games (at
+    # kickoff for the rest): a locked game keeps what was logged before, so a
+    # later run can't swap in new or live odds or a refit model's number.
+    started = log.loc[moneyline.kicked_off(log, friday_lock=True), KEY_COLS]
     locked = pd.MultiIndex.from_frame(started) if not started.empty else None
     log = log.set_index(KEY_COLS)
     snapshot_indexed = snapshot.set_index(KEY_COLS)
     if locked is not None:
         snapshot_indexed = snapshot_indexed[~snapshot_indexed.index.isin(locked)]
+    # A run that didn't fetch odds (or a game the feed dropped) has no line:
+    # keep the line and market numbers already logged rather than blank them.
+    if "vegas_home_favored_by" in snapshot_indexed.columns and "vegas_home_favored_by" in log.columns:
+        no_line = snapshot_indexed["vegas_home_favored_by"].isna() & snapshot_indexed.index.isin(log.index)
+        market = [c for c in snapshot_indexed.columns if c.startswith(("vegas_", "sharp_"))]
+        if no_line.any() and market:
+            snapshot_indexed = snapshot_indexed.copy()
+            prior = log.reindex(snapshot_indexed.index[no_line])
+            for c in market:
+                if c in prior.columns:
+                    snapshot_indexed.loc[no_line, c] = prior[c].values
     log = log.reindex(log.index.union(snapshot_indexed.index))
     for col in snapshot_indexed.columns:
         if col not in log.columns:
@@ -267,7 +278,7 @@ def main():
     log = upsert_snapshot(log, snapshot)
     ml_snapshot = load_moneyline_snapshot()
     if ml_snapshot is not None:
-        log = moneyline.lock_and_merge(log, ml_snapshot, KEY_COLS)
+        log = moneyline.lock_and_merge(log, ml_snapshot, KEY_COLS, friday_lock=True)
     print(f"  CFB tracking log now has {len(log)} predicted games total")
 
     print("Grading any CFB games whose results are now in...")

@@ -14,18 +14,20 @@ on:
     # Times are ET converted to UTC assuming EDT (UTC-4); after the fall DST
     # change to EST they land an hour earlier in ET. GitHub often starts
     # scheduled runs late, so the minutes are off the top of the hour, where
-    # the queue is busiest. Each run spends about 6 odds-API credits (500 a
-    # month): 16 runs a week is about 410 a month.
-    # Saturday (college football): 12 PM, 4 PM, 7 PM and 11 PM ET, so scores,
-    # results and lines stay fresh through the day's games.
+    # the queue is busiest. Every run rebuilds both sites; the NFL odds are
+    # fetched every run, the CFB odds only on the CFB update runs below
+    # (about 3 odds-API credits per sport per fetch, 500 a month).
+    # Saturday: 12 PM, 4 PM, 7 PM and 11 PM ET. CFB scores and results only;
+    # its lines locked Friday at 9 PM ET (src/moneyline.py lock_times).
     - cron: "5 16,20,23 * * 6"
     - cron: "5 3 * * 0"        # Saturday 11 PM ET (03:05 UTC Sunday)
-    # Every other day, twice: 8 AM ET on weekdays, and 7:15 PM ET Sunday to
-    # Friday (about an hour before the TNF, SNF and MNF kickoffs).
-    - cron: "5 12 * * 1-5"
-    - cron: "15 23 * * 0-5"
-    # Sunday's first run is at noon ET, an hour before the NFL early slate.
-    - cron: "5 16 * * 0"
+    # Sunday to Friday at noon ET: the daily CFB update (odds included), and
+    # an NFL run an hour before Sunday's early slate.
+    - cron: "5 16 * * 0-5"
+    # 7:15 PM ET, about an hour before the TNF, SNF and MNF kickoffs. Friday's
+    # also takes CFB's last odds before the 9 PM ET lock.
+    - cron: "15 23 * * 0-4"
+    - cron: "15 23 * * 5"
 
 permissions:
   contents: write
@@ -107,8 +109,11 @@ jobs:
         continue-on-error: true
         run: python src/build_cfb_features.py
 
+      # CFB odds only on the daily noon run and Friday's last one before the
+      # 9 PM ET lock (and manual runs); other runs keep the logged lines.
       - name: Fetch CFB odds
         id: fetch_cfb_odds
+        if: github.event_name != 'schedule' || github.event.schedule == '5 16 * * 0-5' || github.event.schedule == '15 23 * * 5'
         continue-on-error: true
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}

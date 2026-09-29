@@ -97,6 +97,17 @@ def upsert_snapshot(log, snapshot):
     snapshot_indexed = snapshot.set_index(KEY_COLS)
     if locked is not None:
         snapshot_indexed = snapshot_indexed[~snapshot_indexed.index.isin(locked)]
+    # A run that didn't fetch odds (or a game the feed dropped) has no line:
+    # keep the line and market numbers already logged rather than blank them.
+    if "vegas_home_favored_by" in snapshot_indexed.columns and "vegas_home_favored_by" in log.columns:
+        no_line = snapshot_indexed["vegas_home_favored_by"].isna() & snapshot_indexed.index.isin(log.index)
+        market = [c for c in snapshot_indexed.columns if c.startswith(("vegas_", "sharp_"))]
+        if no_line.any() and market:
+            snapshot_indexed = snapshot_indexed.copy()
+            prior = log.reindex(snapshot_indexed.index[no_line])
+            for c in market:
+                if c in prior.columns:
+                    snapshot_indexed.loc[no_line, c] = prior[c].values
     log = log.reindex(log.index.union(snapshot_indexed.index))
     for col in snapshot_indexed.columns:
         if col not in log.columns:

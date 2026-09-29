@@ -866,6 +866,14 @@ def assemble_season_weeks(sport, games, log, comparison, season):
     if not log.empty and "vegas_home_favored_by" in log.columns:
         for _, c in log[(log["season"] == season) & log["vegas_home_favored_by"].notna()].iterrows():
             log_lines[(int(c["week"]), c["home_team"], c["away_team"])] = (c["vegas_home_favored_by"], c.get("vegas_total"))
+    # Games whose lines and picks have locked (CFB: Friday 9 PM ET for the
+    # weekend; otherwise kickoff) show the numbers the tracking log locked in,
+    # not whatever this run's model or odds say.
+    log_locked = {}
+    if not log.empty and "model_spread" in log.columns:
+        cur = log[log["season"] == season]
+        for _, c in cur[moneyline.kicked_off(cur, friday_lock=sport["slug"] == "cfb")].iterrows():
+            log_locked[(int(c["week"]), c["home_team"], c["away_team"])] = c
     for wk, g in upcoming.groupby("week"):
         bucket = week_bucket(wk, g["game_type"].iloc[0] if "game_type" in g.columns else None)
         merged = g.merge(vegas_cols, on=["home_team", "away_team"], how="left") if vegas_cols is not None else g
@@ -873,6 +881,15 @@ def assemble_season_weeks(sport, games, log, comparison, season):
         for _, r in merged.sort_values(sort_cols if sort_cols else "home_team").iterrows():
             if (r["week"], r["home_team"], r["away_team"]) in already_graded:
                 continue  # stale/duplicate row - the tracking log already has the final result
+            frozen = log_locked.get((int(r["week"]), r["home_team"], r["away_team"]))
+            if frozen is not None:
+                r = r.copy()
+                for col in ("model_spread", "model_total", "model_home_win_prob"):
+                    if pd.notna(frozen.get(col)):
+                        r[col] = frozen[col]
+                if pd.notna(frozen.get("vegas_home_favored_by")):
+                    r["vegas_home_favored_by"], r["total_line"] = frozen["vegas_home_favored_by"], frozen.get("vegas_total")
+                    r["vegas_favored_team"] = r["home_team"] if frozen["vegas_home_favored_by"] > 0 else r["away_team"]
             pick = model_pick(r)
             locked = log_lines.get((int(r["week"]), r["home_team"], r["away_team"]))
             if pd.isna(r.get("vegas_home_favored_by")) and locked is not None:

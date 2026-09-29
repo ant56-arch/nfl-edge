@@ -104,37 +104,65 @@ def add_pick_columns(df, model_prob_col="model_home_win_prob"):
     return df
 
 
-def upcoming_only(odds, now=None):
-    """Drops games whose kickoff (commence_time) has passed. The odds feed
+# College football lines lock Friday at 9 PM ET for the weekend's games
+# (Anthony's call: GitHub can start runs late, so the weekend's numbers are set
+# the night before rather than chased up to kickoff).
+FRIDAY_LOCK_HOUR = 21
+
+
+def lock_times(kickoff, gameday=None, friday_lock=False):
+    """When each game's lines and picks lock, as UTC timestamps. That's its
+    kickoff, or with friday_lock, Friday 9 PM ET for a Saturday or Sunday game
+    when that comes first. A game with no kickoff time locks at the end of its
+    date in Eastern time (NaT if it has neither)."""
+    k = pd.to_datetime(pd.Series(kickoff), utc=True, errors="coerce")
+    if gameday is not None:
+        day = pd.to_datetime(pd.Series(gameday).astype(str).str[:10], errors="coerce").values
+        day = pd.Series(day, index=k.index)
+    else:
+        day = pd.Series(pd.NaT, index=k.index)
+    end_of_day = (day + pd.Timedelta(days=1)).dt.tz_localize("America/New_York", nonexistent="shift_forward",
+                                                              ambiguous="NaT").dt.tz_convert("UTC")
+    lock = k.where(k.notna(), end_of_day)
+    if friday_lock:
+        local_day = k.dt.tz_convert("America/New_York").dt.tz_localize(None).dt.normalize()
+        local_day = local_day.where(local_day.notna(), day)
+        weekday = local_day.dt.weekday
+        weekend = weekday.isin([5, 6])
+        friday = (local_day - pd.to_timedelta(weekday - 4, unit="D") + pd.Timedelta(hours=FRIDAY_LOCK_HOUR))
+        friday = friday.dt.tz_localize("America/New_York", nonexistent="shift_forward",
+                                       ambiguous="NaT").dt.tz_convert("UTC")
+        lock = lock.where(~(weekend & (friday < lock.fillna(friday + pd.Timedelta(days=9)))), friday)
+    return lock
+
+
+def upcoming_only(odds, now=None, friday_lock=False):
+    """Drops games whose lines have locked (see lock_times). The odds feed
     keeps listing a game after kickoff with live, in-game lines (a 3-point
     favorite can show -28.5 by the fourth quarter), and those must never
     reach the site or the tracking log."""
     if odds is None or odds.empty or "commence_time" not in odds.columns:
         return odds
     now = now if now is not None else pd.Timestamp.now(tz="UTC")
-    kickoff = pd.to_datetime(odds["commence_time"], utc=True, errors="coerce")
-    return odds[kickoff.isna() | (kickoff > now)].reset_index(drop=True)
+    lock = lock_times(odds["commence_time"].values, friday_lock=friday_lock)
+    lock.index = odds.index
+    return odds[lock.isna() | (lock > now)].reset_index(drop=True)
 
 
-def kicked_off(log, now=None):
-    """True for each logged game that has already started: its kickoff time
-    (ml_commence_time) is past, or, with no kickoff time, its date is before
-    today in Eastern time."""
+def kicked_off(log, now=None, friday_lock=False):
+    """True for each logged game whose lines and picks have locked: its
+    kickoff (ml_commence_time) is past (or, with friday_lock, Friday 9 PM ET
+    before a weekend game), or with no kickoff time, its date is before today
+    in Eastern time."""
     now = now if now is not None else pd.Timestamp.now(tz="UTC")
-    started = pd.Series(False, index=log.index)
-    if "ml_commence_time" in log.columns:
-        kickoff = pd.to_datetime(log["ml_commence_time"], utc=True, errors="coerce")
-        started |= kickoff.notna() & (kickoff <= now)
-    else:
-        kickoff = pd.Series(pd.NaT, index=log.index)
-    if "gameday" in log.columns:
-        today = now.tz_convert("America/New_York").strftime("%Y-%m-%d")
-        day = log["gameday"].astype(str).str[:10]
-        started |= kickoff.isna() & log["gameday"].notna() & (day < today)
-    return started
+    kick = log["ml_commence_time"].values if "ml_commence_time" in log.columns else [pd.NaT] * len(log)
+    day = log["gameday"].values if "gameday" in log.columns else None
+    lock = lock_times(kick, day, friday_lock)
+    lock.index = log.index
+    return lock.notna() & (lock <= now)
 
 
-def lock_and_merge(log, snapshot, key_cols, now=None):
+def lock_and_merge(log, snapshot, key_cols, now=None, friday_lock=False):
     """Writes each snapshot game's moneyline fields into the log, but only
     for games whose kickoff is still ahead. A game already started keeps
     whatever pick was logged before kickoff (or none), so the pick and price
@@ -143,8 +171,9 @@ def lock_and_merge(log, snapshot, key_cols, now=None):
     snap = snapshot[[c for c in key_cols + ML_COLS if c in snapshot.columns]].copy()
     if "ml_commence_time" not in snap.columns:
         return log
-    kickoff = pd.to_datetime(snap["ml_commence_time"], utc=True, errors="coerce")
-    snap = snap[snap["ml_pick_side"].notna() & kickoff.notna() & (kickoff > now)]
+    lock = lock_times(snap["ml_commence_time"].values, friday_lock=friday_lock)
+    lock.index = snap.index
+    snap = snap[snap["ml_pick_side"].notna() & lock.notna() & (lock > now)]
 
     log = log.copy()
     for c in ML_COLS:
