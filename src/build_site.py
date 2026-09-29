@@ -470,6 +470,26 @@ def kick_sort_key(gameday, gametime, commence_time=None):
             pass
     return f"{str(gameday)[:10]} 99:99" if gameday is not None and pd.notna(gameday) else "9999"
 
+def et_time(ts):
+    """'Sep 27, 12:05 PM ET' from a UTC timestamp, or None."""
+    t = pd.to_datetime(ts, utc=True, errors="coerce")
+    if pd.isna(t):
+        return None
+    t = t.tz_convert("America/New_York")
+    return f"{t:%b} {t.day}, {t.hour % 12 or 12}:{t:%M} {'AM' if t.hour < 12 else 'PM'} ET"
+
+def lock_note(set_at, locked, lock_at=None):
+    """The line under a matchup saying when its lines and picks were taken:
+    'Locked Sep 27, 12:05 PM ET' once they've locked (kickoff, or Friday 9 PM
+    ET for a CFB weekend game), else 'Lines as of ... - lock at kickoff'."""
+    when = et_time(set_at)
+    if not when:
+        return ""
+    if locked:
+        return f'<div class="lock-note locked">Locked {when}</div>'
+    until = et_time(lock_at)
+    return f'<div class="lock-note">Lines as of {when} &middot; lock {until or "at kickoff"}</div>'
+
 def day_label(gameday):
     """'Saturday, Sep 26' from a YYYY-MM-DD date."""
     try:
@@ -523,7 +543,7 @@ def render_week_table(week_games):
             result_html = f'<span class="faint">{DASH}</span>'
 
         rows += f"""<tr>
-          <td data-key="matchup" data-value="{g['away_team']} @ {g['home_team']}">{g['matchup_html']}</td>
+          <td data-key="matchup" data-value="{g['away_team']} @ {g['home_team']}">{g['matchup_html']}{g.get('lock_html', '')}</td>
           <td data-key="ml" data-value="{ml_prob:.3f}" data-label="Moneyline pick" class="num ml-cell">{ml_html}</td>
           <td data-key="ourline" data-value="{g['favored_by']:.2f}" data-label="Our spread" class="num">{g['favored_team']} -{g['favored_by']:.1f}</td>
           <td data-key="vegas" data-value="{g['vegas_favored_by'] if g['vegas_favored_by'] is not None else -1:.2f}" data-label="Vegas spread" class="num">{vegas_html}</td>
@@ -843,6 +863,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "gameday": str(r.get("gameday"))[:10] if pd.notna(r.get("gameday")) else None,
                 "kick_sort": kick_sort_key(r.get("gameday"), None, r.get("ml_commence_time")),
                 "covered": spread_result(r),
+                "lock_html": lock_note(r.get("lines_set_at"), True),
             })
 
     if not games.empty:
@@ -862,10 +883,11 @@ def assemble_season_weeks(sport, games, log, comparison, season):
     if not log.empty and "ml_pick_side" in log.columns:
         for _, c in log[(log["season"] == season) & log["ml_pick_side"].notna()].iterrows():
             ml_rows[(int(c["week"]), c["home_team"], c["away_team"])] = c
-    log_lines = {}
+    log_lines, log_rows = {}, {}
     if not log.empty and "vegas_home_favored_by" in log.columns:
         for _, c in log[(log["season"] == season) & log["vegas_home_favored_by"].notna()].iterrows():
             log_lines[(int(c["week"]), c["home_team"], c["away_team"])] = (c["vegas_home_favored_by"], c.get("vegas_total"))
+            log_rows[(int(c["week"]), c["home_team"], c["away_team"])] = c
     # Games whose lines and picks have locked (CFB: Friday 9 PM ET for the
     # weekend; otherwise kickoff) show the numbers the tracking log locked in,
     # not whatever this run's model or odds say.
@@ -890,6 +912,7 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 if pd.notna(frozen.get("vegas_home_favored_by")):
                     r["vegas_home_favored_by"], r["total_line"] = frozen["vegas_home_favored_by"], frozen.get("vegas_total")
                     r["vegas_favored_team"] = r["home_team"] if frozen["vegas_home_favored_by"] > 0 else r["away_team"]
+            logged = log_rows.get((int(r["week"]), r["home_team"], r["away_team"]), {})
             pick = model_pick(r)
             locked = log_lines.get((int(r["week"]), r["home_team"], r["away_team"]))
             if pd.isna(r.get("vegas_home_favored_by")) and locked is not None:
@@ -913,6 +936,9 @@ def assemble_season_weeks(sport, games, log, comparison, season):
                 "spread": spread_pick(sport, r, sigma), "covered": None,
                 "gameday": str(r.get("gameday"))[:10] if pd.notna(r.get("gameday")) else None,
                 "kick_sort": kick_sort_key(r.get("gameday"), r.get("gametime"), r.get("ml_commence_time")),
+                "lock_html": lock_note(logged.get("lines_set_at"), frozen is not None,
+                                       moneyline.lock_times([logged.get("ml_commence_time")], [logged.get("gameday")],
+                                                            sport["slug"] == "cfb").iloc[0]),
             })
 
     # Pre-rendered for the Teams page, whose table site.js draws client-side.

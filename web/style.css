@@ -953,6 +953,8 @@ table.retrain-log td.why-cell { white-space: normal; min-width: 200px; color: va
 /* Home slate: pick cells may wrap long school names so every column fits. */
 table.data.slate td.num { white-space: normal; }
 .ml-sub { font-size: 12px; color: var(--text-muted); text-align: right; max-width: 30ch; line-height: 1.35; }
+.lock-note { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.lock-note.locked::before { content: "\1F512\FE0E  "; }
 
 @media (max-width: 700px) {
   table.responsive-stack tbody tr td.ml-cell { grid-column: 1 / -1; }

@@ -244,6 +244,10 @@ def main():
     snapshot = load_predictions_snapshot()
 
     log = pd.read_csv(LOG_PATH) if os.path.exists(LOG_PATH) else None
+    # When this run's lines and picks were taken. upsert_snapshot only writes
+    # games that haven't kicked off, so once a game starts this stays the
+    # time its line and pick were locked in (shown on the site).
+    snapshot["lines_set_at"] = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
     log = upsert_snapshot(log, snapshot)
     ml_snapshot = load_moneyline_snapshot()
     if ml_snapshot is not None:
