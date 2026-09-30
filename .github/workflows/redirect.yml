@@ -1,0 +1,32 @@
+name: Redirect to Sports Edge
+
+# NFL and CFB Edge moved into github.com/ant56-arch/ant56-arch.github.io, which publishes
+# every Sports Edge site at https://ant56-arch.github.io/. This repo's pipelines
+# are off; its Pages site only redirects old links (redirect/index.html, also
+# served as 404.html so every old address lands on its new one).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp redirect/index.html redirect/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: redirect
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
